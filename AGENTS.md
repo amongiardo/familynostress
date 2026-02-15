@@ -50,5 +50,5 @@ Quando si lavora con più sessioni Codex in parallelo:
 - Segui le regole operative in `SKILL.md` (in particolare: chiedere sempre se fare `cm` a fine fix/feature).
 - Mantieni un versioning SemVer in `VERSION` (partenza `0.0.0`) e aggiornalo quando fai un rilascio logico o quando richiesto.
 
-Ultimo aggiornamento: 2026-02-13 (notifiche: elimina lette, contrasto letto/non letto e overlay sempre in primo piano)
+Ultimo aggiornamento: 2026-02-13 (dashboard pasti fuori con salvataggio immediato senza auth/confirm)
 </INSTRUCTIONS>

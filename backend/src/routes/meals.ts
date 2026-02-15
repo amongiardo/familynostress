@@ -539,7 +539,7 @@ router.get('/outs', isAuthenticated, async (req, res, next) => {
 });
 
 // Set meal out for a date/mealType (clears existing dishes)
-router.post('/outs', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.post('/outs', isAuthenticated, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { date: dateStr, mealType } = req.body as { date?: string; mealType?: string };
@@ -585,7 +585,7 @@ router.post('/outs', isAuthenticated, requireFamilyAuthCode, async (req, res, ne
 });
 
 // Remove meal out for a date/mealType
-router.delete('/outs', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/outs', isAuthenticated, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { date: dateStr, mealType } = req.body as { date?: string; mealType?: string };

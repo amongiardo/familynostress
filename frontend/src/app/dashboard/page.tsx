@@ -9,7 +9,7 @@ import { FaPlus, FaLightbulb } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { mealsApi, suggestionsApi, dishesApi, familyApi, weatherApi, shoppingApi } from '@/lib/api';
-import { DishCategory, MealPlan, MealType } from '@/types';
+import { DishCategory, MealPlan, MealType, MealOut } from '@/types';
 import StatusModal from '@/components/StatusModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/lib/AuthContext';
@@ -64,6 +64,13 @@ export default function DashboardPage() {
     queryFn: () => mealsApi.getRange(rangeStart, rangeEnd),
     enabled: Boolean(user?.activeFamilyId),
   });
+
+  const { data: mealOuts } = useQuery({
+    queryKey: ['mealOuts', rangeStart, rangeEnd],
+    queryFn: () => mealsApi.getOutRange(rangeStart, rangeEnd),
+    enabled: Boolean(user?.activeFamilyId),
+  });
+
 
   const suggestionDate = format(today, 'yyyy-MM-dd');
   const suggestionQueries = {
@@ -243,6 +250,35 @@ export default function DashboardPage() {
     },
   });
 
+  const setOutMutation = useMutation({
+    mutationFn: ({ date, mealType }: { date: string; mealType: MealType }) =>
+      mealsApi.setOut({ date, mealType }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meals'] });
+      queryClient.invalidateQueries({ queryKey: ['mealOuts'] });
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const removeOutMutation = useMutation({
+    mutationFn: ({ date, mealType }: { date: string; mealType: MealType }) =>
+      mealsApi.removeOut({ date, mealType }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meals'] });
+      queryClient.invalidateQueries({ queryKey: ['mealOuts'] });
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const getMealOut = (dateStr: string, mealType: MealType) =>
+    mealOuts?.find(
+      (out) => format(new Date(out.date), 'yyyy-MM-dd') === dateStr && out.mealType === mealType
+    );
+
   const handleSlotChange = (
     mealType: MealType,
     slotCategory: DishCategory,
@@ -418,46 +454,79 @@ export default function DashboardPage() {
         <Row className="g-4">
           <Col lg={8}>
             <div className="meal-section">
-              {(['pranzo', 'cena'] as MealType[]).map((mealType) => (
-                <Card
-                  key={mealType}
-                  className={`meal-bubble-card ${mealType === 'pranzo' ? 'meal-bubble-lunch' : 'meal-bubble-dinner'} mb-3`}
-                >
-                  <Card.Body>
-                    <div className="meal-bubble-header">
-                      <div className="d-flex align-items-center gap-2">
-                        <span className="meal-bubble-label">
-                          {mealType === 'pranzo' ? '☀️ Pranzo' : '🌙 Cena'} di{' '}
-                          {format(days[selectedDayIndex]?.date ?? today, 'EEEE d MMMM yyyy', { locale: it })}
-                        </span>
+              {(['pranzo', 'cena'] as MealType[]).map((mealType) => {
+                const selectedDateStr = format(addDays(weekStart, selectedDayIndex), 'yyyy-MM-dd');
+                const isOut = Boolean(getMealOut(selectedDateStr, mealType));
+                return (
+                  <Card
+                    key={mealType}
+                    className={`meal-bubble-card ${mealType === 'pranzo' ? 'meal-bubble-lunch' : 'meal-bubble-dinner'} mb-3`}
+                  >
+                    <Card.Body>
+                      <div className="meal-bubble-header">
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="meal-bubble-label">
+                            {mealType === 'pranzo' ? '☀️ Pranzo' : '🌙 Cena'} di{' '}
+                            {format(days[selectedDayIndex]?.date ?? today, 'EEEE d MMMM yyyy', { locale: it })}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="d-flex flex-column gap-3">
-                      {slotCategories.map((slot) => {
-                        const meal = getMealBySlot(selectedDayIndex, mealType, slot);
-                        return (
-                          <div key={`${mealType}-${slot}`} className="d-flex align-items-center gap-3">
-                            <span className="meal-slot-label">
-                              <Badge className={getCategoryBadgeClass(slot)}>{slot}</Badge>
-                            </span>
-                            <Form.Select
-                              value={meal?.dishId || ''}
-                              onChange={(e) => handleSlotChange(mealType, slot, e.target.value)}
-                            >
-                              <option value="">Seleziona {slot}...</option>
-                              {dishesByCategory[slot].map((dish) => (
-                                <option key={dish.id} value={dish.id}>
-                                  {dish.name}
-                                </option>
-                              ))}
-                            </Form.Select>
+                      <div className="d-flex flex-column gap-3">
+                        {isOut && (
+                          <div className="text-muted small">
+                            {mealType === 'pranzo' ? 'Pranzo fuori impostato.' : 'Cena fuori impostata.'}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </Card.Body>
-                </Card>
-              ))}
+                        )}
+                        {slotCategories.map((slot) => {
+                          const meal = getMealBySlot(selectedDayIndex, mealType, slot);
+                          return (
+                            <div key={`${mealType}-${slot}`} className="d-flex align-items-center gap-3">
+                              <span className="meal-slot-label">
+                                <Badge className={getCategoryBadgeClass(slot)}>{slot}</Badge>
+                              </span>
+                              <Form.Select
+                                value={meal?.dishId || ''}
+                                onChange={(e) => handleSlotChange(mealType, slot, e.target.value)}
+                                disabled={isOut}
+                              >
+                                <option value="">Seleziona {slot}...</option>
+                                {dishesByCategory[slot].map((dish) => (
+                                  <option key={dish.id} value={dish.id}>
+                                    {dish.name}
+                                  </option>
+                                ))}
+                              </Form.Select>
+                            </div>
+                          );
+                        })}
+                        <div className="d-flex justify-content-end">
+                          {isOut ? (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              className="btn-danger-soft"
+                              onClick={() => removeOutMutation.mutate({ date: selectedDateStr, mealType })}
+                              disabled={removeOutMutation.isPending || setOutMutation.isPending}
+                            >
+                              Annulla {mealType === 'pranzo' ? 'Pranzo fuori' : 'Cena fuori'}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="info"
+                              className="btn-info-soft"
+                              onClick={() => setOutMutation.mutate({ date: selectedDateStr, mealType })}
+                              disabled={removeOutMutation.isPending || setOutMutation.isPending}
+                            >
+                              {mealType === 'pranzo' ? 'Pranzo fuori' : 'Cena fuori'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                );
+              })}
             </div>
           </Col>
 

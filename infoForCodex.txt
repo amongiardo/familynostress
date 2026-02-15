@@ -174,3 +174,4 @@ Changelog
 - 2026-02-13: Chat privata a box multipli: creazione thread dinamica (anche su messaggio ricevuto), select filtrata senza duplicati, layout chat famiglia full-width + griglia private max 3 colonne desktop (stack su mobile).
 - 2026-02-13: Chat UX compact: viewport chat famiglia/private a ~3 messaggi con scroll interno e auto-scroll sempre in basso su nuovi messaggi; invio rapido Enter (Alt+Enter a capo).
 - 2026-02-13: Notifiche dropdown: aggiunto pulsante "Elimina lette" con nuova API `DELETE /api/notifications/read`; migliorati layering z-index e contrasto visuale letto/non letto (testo letto grigio-disabilitato).
+- 2026-02-13: Dashboard: "Pranzo/Cena fuori" ora salva immediatamente senza richiesta codice auth e senza modale di conferma (toggle diretto).

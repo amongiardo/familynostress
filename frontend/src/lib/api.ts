@@ -265,13 +265,13 @@ export const mealsApi = {
   getDate: (date: string) => fetchApi<MealPlan[]>(`/api/meals/date/${date}`),
   getOutRange: (start: string, end: string) =>
     fetchApi<MealOut[]>(`/api/meals/outs?start=${start}&end=${end}`),
-  setOut: (data: { date: string; mealType: string }, authCode: string) =>
+  setOut: (data: { date: string; mealType: string }, authCode?: string) =>
     fetchApi<MealOut>('/api/meals/outs', {
       method: 'POST',
       body: JSON.stringify(data),
       headers: authCodeHeaders(authCode),
     }),
-  removeOut: (data: { date: string; mealType: string }, authCode: string) =>
+  removeOut: (data: { date: string; mealType: string }, authCode?: string) =>
     fetchApi<{ success: boolean }>('/api/meals/outs', {
       method: 'DELETE',
       body: JSON.stringify(data),
