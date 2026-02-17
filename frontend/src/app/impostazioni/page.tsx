@@ -53,6 +53,37 @@ export default function ImpostazioniPage() {
   const [targetFamilyId, setTargetFamilyId] = useState<string>('');
   const [leaveTargetFamilyId, setLeaveTargetFamilyId] = useState<string>('');
   const [deleteFamilyAuthCode, setDeleteFamilyAuthCode] = useState('');
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [backupAuthCode, setBackupAuthCode] = useState('');
+  const [resetAuthCode, setResetAuthCode] = useState('');
+  const [backupPayload, setBackupPayload] = useState<any | null>(null);
+  const [backupFileName, setBackupFileName] = useState('');
+  const [backupTargets, setBackupTargets] = useState<Record<string, boolean>>({
+    planning: true,
+    chats: true,
+    dishes: true,
+    shopping: true,
+    invites: true,
+    notifications: true,
+  });
+  const [resetTargets, setResetTargets] = useState<Record<string, boolean>>({
+    planning: true,
+    chats: false,
+    dishes: false,
+    shopping: false,
+    invites: false,
+    notifications: false,
+  });
+
+  const resetOptions: { key: string; label: string; hint: string }[] = [
+    { key: 'planning', label: 'Pianificazione', hint: 'Meal plan e pasti fuori' },
+    { key: 'chats', label: 'Chat', hint: 'Chat famiglia e private della famiglia attiva' },
+    { key: 'dishes', label: 'Piatti', hint: 'Cancella i piatti di famiglia (e i meal plan collegati)' },
+    { key: 'shopping', label: 'Lista Spesa', hint: 'Svuota tutte le liste spesa della famiglia' },
+    { key: 'invites', label: 'Inviti', hint: 'Cancella tutti gli inviti pendenti/scaduti' },
+    { key: 'notifications', label: 'Notifiche', hint: 'Cancella notifiche legate alla famiglia' },
+  ];
 
   const { data: family, isLoading } = useQuery<Family>({
     queryKey: ['family'],
@@ -122,6 +153,69 @@ export default function ImpostazioniPage() {
     onError: (err: Error) => {
       setError(err.message);
     },
+  });
+
+  const exportBackupMutation = useMutation({
+    mutationFn: familyApi.exportBackup,
+    onSuccess: (data) => {
+      const familyName = data?.family?.name || 'famiglia';
+      const sanitizedName = String(familyName).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'famiglia';
+      const stamp = format(new Date(), 'yyyyMMdd-HHmm');
+      const filename = `backup-${sanitizedName}-${stamp}.json`;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setSuccess('Backup scaricato');
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const restoreBackupMutation = useMutation({
+    mutationFn: ({ backup, targets, authCode }: { backup: any; targets: string[]; authCode: string }) =>
+      familyApi.restoreBackup(backup, targets, authCode),
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ['family'] });
+      await queryClient.invalidateQueries({ queryKey: ['meals'] });
+      await queryClient.invalidateQueries({ queryKey: ['mealOuts'] });
+      await queryClient.invalidateQueries({ queryKey: ['dishes'] });
+      await queryClient.invalidateQueries({ queryKey: ['shopping'] });
+      await queryClient.invalidateQueries({ queryKey: ['invites'] });
+      await queryClient.invalidateQueries({ queryKey: ['chat', 'messages'] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setShowBackupModal(false);
+      setBackupAuthCode('');
+      setBackupPayload(null);
+      setBackupFileName('');
+      setSuccess('Restore backup completato');
+      setTimeout(() => setSuccess(''), 3000);
+      console.log('Backup restore summary:', data?.summary);
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const resetDataMutation = useMutation({
+    mutationFn: ({ targets, authCode }: { targets: string[]; authCode: string }) =>
+      familyApi.resetData(targets, authCode),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['family'] });
+      await queryClient.invalidateQueries({ queryKey: ['meals'] });
+      await queryClient.invalidateQueries({ queryKey: ['mealOuts'] });
+      await queryClient.invalidateQueries({ queryKey: ['dishes'] });
+      await queryClient.invalidateQueries({ queryKey: ['shopping'] });
+      await queryClient.invalidateQueries({ queryKey: ['invites'] });
+      await queryClient.invalidateQueries({ queryKey: ['chat', 'messages'] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setShowResetModal(false);
+      setResetAuthCode('');
+      setSuccess('Reset completato');
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: Error) => setError(err.message),
   });
 
   const inviteMutation = useMutation({
@@ -359,6 +453,52 @@ export default function ImpostazioniPage() {
     }
   };
 
+  const handlePasteBackupAuthCode = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setBackupAuthCode((text || '').trim().toUpperCase().slice(0, 5));
+    } catch (err) {
+      console.error('Failed to paste auth code:', err);
+    }
+  };
+
+  const handlePasteResetAuthCode = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setResetAuthCode((text || '').trim().toUpperCase().slice(0, 5));
+    } catch (err) {
+      console.error('Failed to paste auth code:', err);
+    }
+  };
+
+  const selectedBackupTargets = Object.entries(backupTargets)
+    .filter(([, checked]) => checked)
+    .map(([key]) => key);
+  const selectedResetTargets = Object.entries(resetTargets)
+    .filter(([, checked]) => checked)
+    .map(([key]) => key);
+
+  const handleBackupFileSelected = async (file: File | null) => {
+    if (!file) {
+      setBackupPayload(null);
+      setBackupFileName('');
+      return;
+    }
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Formato backup non valido');
+      }
+      setBackupPayload(parsed);
+      setBackupFileName(file.name);
+    } catch (err: any) {
+      setBackupPayload(null);
+      setBackupFileName('');
+      setError(err?.message || 'File backup non valido');
+    }
+  };
+
   const renderCitySuggestions = (
     suggestions: CitySearchResult[] | undefined,
     onSelect: (city: CitySearchResult) => void
@@ -400,9 +540,21 @@ export default function ImpostazioniPage() {
     <DashboardLayout>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="page-title mb-0">Impostazioni</h2>
-        <Button variant="primary" onClick={() => setShowCreateFamilyModal(true)}>
-          Aggiungi Famiglia
-        </Button>
+        <div className="d-flex align-items-center gap-2">
+          {isAdmin && hasActiveFamily && (
+            <>
+              <Button variant="outline-primary" className="btn-primary-soft" onClick={() => setShowBackupModal(true)}>
+                Backup
+              </Button>
+              <Button variant="outline-danger" className="btn-danger-soft" onClick={() => setShowResetModal(true)}>
+                Reset
+              </Button>
+            </>
+          )}
+          <Button variant="primary" onClick={() => setShowCreateFamilyModal(true)}>
+            Aggiungi Famiglia
+          </Button>
+        </div>
       </div>
 
       <StatusModal
@@ -964,6 +1116,228 @@ export default function ImpostazioniPage() {
           )}
         </Col>
       </Row>
+
+      <Modal
+        show={showBackupModal}
+        onHide={() => {
+          if (exportBackupMutation.isPending || restoreBackupMutation.isPending) return;
+          setShowBackupModal(false);
+          setBackupAuthCode('');
+          setBackupPayload(null);
+          setBackupFileName('');
+        }}
+        centered
+        dialogClassName="app-modal"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Backup & Restore</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="mb-3">
+            <div className="fw-bold mb-2">Backup</div>
+            <div className="text-muted small mb-2">
+              Esporta un file JSON completo della famiglia attiva (pianificazione, chat, piatti, spesa, inviti, notifiche).
+            </div>
+            <Button
+              variant="outline-primary"
+              className="btn-primary-soft"
+              onClick={() => exportBackupMutation.mutate()}
+              disabled={exportBackupMutation.isPending}
+            >
+              {exportBackupMutation.isPending ? <Spinner size="sm" animation="border" /> : 'Scarica Backup'}
+            </Button>
+          </div>
+
+          <hr />
+
+          <div>
+            <div className="fw-bold mb-2">Restore</div>
+            <div className="text-muted small mb-2">
+              Carica un backup JSON e scegli cosa ripristinare. Il restore sostituisce i dati attuali delle sezioni selezionate.
+            </div>
+            <Form.Group className="mb-3">
+              <Form.Label>File backup</Form.Label>
+              <Form.Control
+                type="file"
+                accept=".json,application/json"
+                onChange={(e) => handleBackupFileSelected((e.target as HTMLInputElement).files?.[0] || null)}
+              />
+              {backupFileName && (
+                <Form.Text className="text-muted">File caricato: {backupFileName}</Form.Text>
+              )}
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Sezioni da ripristinare</Form.Label>
+              {resetOptions.map((opt) => (
+                <Form.Check
+                  key={`backup-${opt.key}`}
+                  type="checkbox"
+                  id={`backup-${opt.key}`}
+                  label={`${opt.label} (${opt.hint})`}
+                  checked={backupTargets[opt.key]}
+                  onChange={(e) =>
+                    setBackupTargets((prev) => ({
+                      ...prev,
+                      [opt.key]: e.target.checked,
+                    }))
+                  }
+                  className="mb-1"
+                />
+              ))}
+            </Form.Group>
+
+            <Form.Group controlId="backupRestoreAuthCode">
+              <Form.Label>Codice di autenticazione</Form.Label>
+              <InputGroup>
+                <Form.Control
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  placeholder="es: A1B2C"
+                  maxLength={5}
+                  value={backupAuthCode}
+                  onChange={(e) => setBackupAuthCode(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline-primary"
+                  className="btn-primary-soft"
+                  onClick={handlePasteBackupAuthCode}
+                  title="Incolla codice"
+                >
+                  <FaPaste />
+                </Button>
+              </InputGroup>
+            </Form.Group>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="outline-danger"
+            className="btn-danger-soft"
+            onClick={() => {
+              setShowBackupModal(false);
+              setBackupAuthCode('');
+              setBackupPayload(null);
+              setBackupFileName('');
+            }}
+            disabled={restoreBackupMutation.isPending || exportBackupMutation.isPending}
+          >
+            Chiudi
+          </Button>
+          <Button
+            variant="primary"
+            disabled={
+              restoreBackupMutation.isPending ||
+              !backupPayload ||
+              !selectedBackupTargets.length ||
+              !/^[A-Z0-9]{5}$/.test(backupAuthCode.trim().toUpperCase())
+            }
+            onClick={() =>
+              restoreBackupMutation.mutate({
+                backup: backupPayload,
+                targets: selectedBackupTargets,
+                authCode: backupAuthCode.trim().toUpperCase(),
+              })
+            }
+          >
+            {restoreBackupMutation.isPending ? <Spinner size="sm" animation="border" /> : 'Restore Backup'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showResetModal}
+        onHide={() => {
+          if (resetDataMutation.isPending) return;
+          setShowResetModal(false);
+          setResetAuthCode('');
+        }}
+        centered
+        dialogClassName="app-modal"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Reset Dati Famiglia</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="text-muted small mb-3">
+            Consiglio: usa prima il backup. Il reset svuota in modo definitivo le sezioni selezionate.
+          </div>
+          <Form.Group className="mb-3">
+            <Form.Label>Cosa vuoi svuotare</Form.Label>
+            {resetOptions.map((opt) => (
+              <Form.Check
+                key={`reset-${opt.key}`}
+                type="checkbox"
+                id={`reset-${opt.key}`}
+                label={`${opt.label} (${opt.hint})`}
+                checked={resetTargets[opt.key]}
+                onChange={(e) =>
+                  setResetTargets((prev) => ({
+                    ...prev,
+                    [opt.key]: e.target.checked,
+                  }))
+                }
+                className="mb-1"
+              />
+            ))}
+          </Form.Group>
+
+          <Form.Group controlId="resetFamilyDataAuthCode">
+            <Form.Label>Codice di autenticazione</Form.Label>
+            <InputGroup>
+              <Form.Control
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                placeholder="es: A1B2C"
+                maxLength={5}
+                value={resetAuthCode}
+                onChange={(e) => setResetAuthCode(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline-primary"
+                className="btn-primary-soft"
+                onClick={handlePasteResetAuthCode}
+                title="Incolla codice"
+              >
+                <FaPaste />
+              </Button>
+            </InputGroup>
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="outline-danger"
+            className="btn-danger-soft"
+            onClick={() => {
+              setShowResetModal(false);
+              setResetAuthCode('');
+            }}
+            disabled={resetDataMutation.isPending}
+          >
+            Annulla
+          </Button>
+          <Button
+            variant="primary"
+            disabled={
+              resetDataMutation.isPending ||
+              !selectedResetTargets.length ||
+              !/^[A-Z0-9]{5}$/.test(resetAuthCode.trim().toUpperCase())
+            }
+            onClick={() =>
+              resetDataMutation.mutate({
+                targets: selectedResetTargets,
+                authCode: resetAuthCode.trim().toUpperCase(),
+              })
+            }
+          >
+            {resetDataMutation.isPending ? <Spinner size="sm" animation="border" /> : 'Esegui Reset'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <ConfirmModal
         show={Boolean(pendingInviteDelete)}

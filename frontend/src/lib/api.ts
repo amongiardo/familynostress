@@ -168,6 +168,20 @@ export const familyApi = {
     }),
   regenerateAuthCode: () =>
     fetchApi<{ authCode: string }>('/api/family/auth-code/regenerate', { method: 'POST' }),
+  exportBackup: () =>
+    fetchApi<any>('/api/family/backup/export'),
+  restoreBackup: (backup: any, targets: string[], authCode: string) =>
+    fetchApi<{ success: boolean; summary: any }>('/api/family/backup/restore', {
+      method: 'POST',
+      headers: authCodeHeaders(authCode),
+      body: JSON.stringify({ backup, targets }),
+    }),
+  resetData: (targets: string[], authCode: string) =>
+    fetchApi<{ success: boolean; deleted: any }>('/api/family/reset', {
+      method: 'POST',
+      headers: authCodeHeaders(authCode),
+      body: JSON.stringify({ targets }),
+    }),
   invite: (email: string) => fetchApi<{ invite: FamilyInvite }>('/api/family/invite', {
     method: 'POST',
     body: JSON.stringify({ email }),

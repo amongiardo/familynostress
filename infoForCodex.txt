@@ -179,3 +179,4 @@ Changelog
 - 2026-02-13: `scripts/check_db_all.sh` reso robusto: discovery automatico versioni PostgreSQL installate, status/check per versione, fallback senza crash e compatibilita Bash macOS.
 - 2026-02-13: Chat: aggiunti nome famiglia in header/placeholder, chiusura box chat privata con pulsante dedicato e persistenza stato chiusura (riapertura da "Nuova Chat Privata" senza perdita messaggi).
 - 2026-02-13: Chat UX aggiornata: apertura chat privata diretta dal box membri, rimozione box "Nuova Chat Privata", pulsanti stato chat (apri/chiudi) e toggle riduci/ingrandisci chat famiglia con stile coerente verde/rosso.
+- 2026-02-13: Impostazioni: introdotti pulsanti Backup/Reset con modali dedicate; backup export JSON, restore selettivo per sezioni e reset selettivo (planning/chat/piatti/spesa/inviti/notifiche) con auth code.

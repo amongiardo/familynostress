@@ -48,6 +48,19 @@ function toFamilyResponse(family: any, role: FamilyRole, authCode?: string) {
 }
 
 const ACTIVE_FAMILY_FILTER = { deletedAt: null };
+const BACKUP_TARGETS = ['planning', 'chats', 'dishes', 'shopping', 'invites', 'notifications'] as const;
+type BackupTarget = (typeof BACKUP_TARGETS)[number];
+
+function sanitizeBackupTargets(input: unknown): BackupTarget[] {
+  if (!Array.isArray(input)) return [];
+  const uniq = new Set<BackupTarget>();
+  for (const value of input) {
+    if (typeof value === 'string' && (BACKUP_TARGETS as readonly string[]).includes(value)) {
+      uniq.add(value as BackupTarget);
+    }
+  }
+  return Array.from(uniq);
+}
 
 function normalizeCitySelection(input: unknown): CitySelectionInput | null {
   if (!input || typeof input !== 'object') return null;
@@ -686,6 +699,355 @@ router.post('/auth-code/regenerate', isLoggedIn, async (req, res, next) => {
       select: { authCode: true },
     });
     res.json({ authCode: user.authCode });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export full backup of active family data (admin only)
+router.get('/backup/export', isAuthenticated, requireAdmin, async (req, res, next) => {
+  try {
+    const familyId = getFamilyId(req);
+    const exportedAt = new Date().toISOString();
+
+    const [
+      family,
+      dishes,
+      mealPlans,
+      mealOuts,
+      shoppingLists,
+      invites,
+      chatMessages,
+      notifications,
+      members,
+    ] = await Promise.all([
+      prisma.family.findUnique({
+        where: { id: familyId },
+        select: {
+          id: true,
+          name: true,
+          city: true,
+          cityDisplayName: true,
+          cityCountry: true,
+          cityTimezone: true,
+          cityLatitude: true,
+          cityLongitude: true,
+          createdAt: true,
+        },
+      }),
+      prisma.dish.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.mealPlan.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.mealOut.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.shoppingList.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.familyInvite.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.chatMessage.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.notification.findMany({ where: { familyId }, orderBy: { createdAt: 'asc' } }),
+      prisma.familyMember.findMany({
+        where: { familyId },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      }),
+    ]);
+
+    res.json({
+      schemaVersion: 1,
+      exportedAt,
+      family,
+      members: members.map((m) => ({
+        userId: m.userId,
+        role: m.role,
+        status: m.status,
+        leftAt: m.leftAt,
+        removedAt: m.removedAt,
+        createdAt: m.createdAt,
+        user: m.user,
+      })),
+      data: {
+        dishes,
+        mealPlans,
+        mealOuts,
+        shoppingLists,
+        invites,
+        chatMessages,
+        notifications,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Restore selected sections from backup JSON into active family (admin only)
+router.post('/backup/restore', isAuthenticated, requireAdmin, requireFamilyAuthCode, async (req, res, next) => {
+  try {
+    const familyId = getFamilyId(req);
+    const targets = sanitizeBackupTargets((req.body as any)?.targets);
+    const backup = (req.body as any)?.backup;
+
+    if (!backup || typeof backup !== 'object') {
+      return res.status(400).json({ error: 'Backup payload mancante o non valido' });
+    }
+    if (!targets.length) {
+      return res.status(400).json({ error: 'Seleziona almeno una sezione da ripristinare' });
+    }
+
+    const data = (backup as any).data || {};
+    const dishRows = Array.isArray(data.dishes) ? data.dishes : [];
+    const mealPlanRows = Array.isArray(data.mealPlans) ? data.mealPlans : [];
+    const mealOutRows = Array.isArray(data.mealOuts) ? data.mealOuts : [];
+    const shoppingRows = Array.isArray(data.shoppingLists) ? data.shoppingLists : [];
+    const inviteRows = Array.isArray(data.invites) ? data.invites : [];
+    const chatRows = Array.isArray(data.chatMessages) ? data.chatMessages : [];
+    const notificationRows = Array.isArray(data.notifications) ? data.notifications : [];
+
+    const userIdsInPayload = new Set<string>();
+    for (const row of chatRows) {
+      if (typeof row?.senderUserId === 'string') userIdsInPayload.add(row.senderUserId);
+      if (typeof row?.recipientUserId === 'string') userIdsInPayload.add(row.recipientUserId);
+    }
+    for (const row of notificationRows) {
+      if (typeof row?.userId === 'string') userIdsInPayload.add(row.userId);
+    }
+    const validUsers = userIdsInPayload.size
+      ? await prisma.user.findMany({
+          where: { id: { in: Array.from(userIdsInPayload) } },
+          select: { id: true },
+        })
+      : [];
+    const validUserIds = new Set(validUsers.map((u) => u.id));
+
+    const summary = {
+      restored: {
+        dishes: 0,
+        mealPlans: 0,
+        mealOuts: 0,
+        shoppingLists: 0,
+        invites: 0,
+        chatMessages: 0,
+        notifications: 0,
+      },
+      skipped: {
+        mealPlansInvalidDish: 0,
+        chatMessagesInvalidUser: 0,
+        notificationsInvalidUser: 0,
+      },
+    };
+
+    await prisma.$transaction(async (tx) => {
+      if (targets.includes('chats')) {
+        await tx.chatMessage.deleteMany({ where: { familyId } });
+        for (const row of chatRows) {
+          const senderUserId =
+            typeof row?.senderUserId === 'string' && validUserIds.has(row.senderUserId)
+              ? row.senderUserId
+              : null;
+          const recipientUserId =
+            typeof row?.recipientUserId === 'string' && validUserIds.has(row.recipientUserId)
+              ? row.recipientUserId
+              : null;
+
+          if (typeof row?.senderUserId === 'string' && !senderUserId) {
+            summary.skipped.chatMessagesInvalidUser += 1;
+          }
+          if (typeof row?.recipientUserId === 'string' && !recipientUserId) {
+            summary.skipped.chatMessagesInvalidUser += 1;
+          }
+
+          await tx.chatMessage.create({
+            data: {
+              familyId,
+              senderUserId,
+              recipientUserId,
+              messageType: typeof row?.messageType === 'string' ? row.messageType : 'user',
+              content: typeof row?.content === 'string' ? row.content : '',
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.chatMessages += 1;
+        }
+      }
+
+      if (targets.includes('notifications')) {
+        await tx.notification.deleteMany({ where: { familyId } });
+        for (const row of notificationRows) {
+          if (typeof row?.userId !== 'string' || !validUserIds.has(row.userId)) {
+            summary.skipped.notificationsInvalidUser += 1;
+            continue;
+          }
+          await tx.notification.create({
+            data: {
+              userId: row.userId,
+              familyId,
+              type: typeof row?.type === 'string' ? row.type : 'generic',
+              title: typeof row?.title === 'string' ? row.title : 'Notifica',
+              message: typeof row?.message === 'string' ? row.message : '',
+              isRead: Boolean(row?.isRead),
+              data: row?.data ?? null,
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.notifications += 1;
+        }
+      }
+
+      if (targets.includes('invites')) {
+        await tx.familyInvite.deleteMany({ where: { familyId } });
+        for (const row of inviteRows) {
+          if (typeof row?.email !== 'string' || typeof row?.token !== 'string') continue;
+          await tx.familyInvite.create({
+            data: {
+              familyId,
+              email: row.email,
+              token: row.token,
+              expiresAt: row?.expiresAt ? new Date(row.expiresAt) : new Date(),
+              usedAt: row?.usedAt ? new Date(row.usedAt) : null,
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.invites += 1;
+        }
+      }
+
+      if (targets.includes('shopping')) {
+        await tx.shoppingList.deleteMany({ where: { familyId } });
+        for (const row of shoppingRows) {
+          await tx.shoppingList.create({
+            data: {
+              familyId,
+              weekStart: row?.weekStart ? new Date(row.weekStart) : new Date(),
+              items: row?.items ?? [],
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.shoppingLists += 1;
+        }
+      }
+
+      if (targets.includes('dishes')) {
+        await tx.mealPlan.deleteMany({ where: { familyId } });
+        await tx.dish.deleteMany({ where: { familyId } });
+        for (const row of dishRows) {
+          if (typeof row?.name !== 'string' || typeof row?.category !== 'string') continue;
+          await tx.dish.create({
+            data: {
+              id: typeof row?.id === 'string' ? row.id : undefined,
+              familyId,
+              name: row.name,
+              category: row.category,
+              ingredients: Array.isArray(row?.ingredients) ? row.ingredients : [],
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.dishes += 1;
+        }
+      }
+
+      if (targets.includes('planning')) {
+        await tx.mealPlan.deleteMany({ where: { familyId } });
+        await tx.mealOut.deleteMany({ where: { familyId } });
+
+        const existingDishes = await tx.dish.findMany({
+          where: { familyId },
+          select: { id: true },
+        });
+        const dishIds = new Set(existingDishes.map((d) => d.id));
+
+        for (const row of mealOutRows) {
+          if (!row?.date || !row?.mealType) continue;
+          await tx.mealOut.create({
+            data: {
+              familyId,
+              date: new Date(row.date),
+              mealType: row.mealType,
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.mealOuts += 1;
+        }
+
+        for (const row of mealPlanRows) {
+          if (!row?.date || !row?.mealType || !row?.slotCategory || !row?.dishId) continue;
+          if (!dishIds.has(row.dishId)) {
+            summary.skipped.mealPlansInvalidDish += 1;
+            continue;
+          }
+          await tx.mealPlan.create({
+            data: {
+              familyId,
+              date: new Date(row.date),
+              mealType: row.mealType,
+              slotCategory: row.slotCategory,
+              dishId: row.dishId,
+              isSuggestion: Boolean(row?.isSuggestion),
+              createdAt: row?.createdAt ? new Date(row.createdAt) : new Date(),
+            },
+          });
+          summary.restored.mealPlans += 1;
+        }
+      }
+    });
+
+    res.json({ success: true, summary });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Reset selected sections of active family data (admin only)
+router.post('/reset', isAuthenticated, requireAdmin, requireFamilyAuthCode, async (req, res, next) => {
+  try {
+    const familyId = getFamilyId(req);
+    const targets = sanitizeBackupTargets((req.body as any)?.targets);
+    if (!targets.length) {
+      return res.status(400).json({ error: 'Seleziona almeno una sezione da resettare' });
+    }
+
+    const deleted = {
+      dishes: 0,
+      mealPlans: 0,
+      mealOuts: 0,
+      shoppingLists: 0,
+      invites: 0,
+      chatMessages: 0,
+      notifications: 0,
+    };
+
+    await prisma.$transaction(async (tx) => {
+      if (targets.includes('planning')) {
+        const d1 = await tx.mealPlan.deleteMany({ where: { familyId } });
+        const d2 = await tx.mealOut.deleteMany({ where: { familyId } });
+        deleted.mealPlans = d1.count;
+        deleted.mealOuts = d2.count;
+      }
+      if (targets.includes('chats')) {
+        const d = await tx.chatMessage.deleteMany({ where: { familyId } });
+        deleted.chatMessages = d.count;
+      }
+      if (targets.includes('dishes')) {
+        const d1 = await tx.mealPlan.deleteMany({ where: { familyId } });
+        const d2 = await tx.dish.deleteMany({ where: { familyId } });
+        deleted.mealPlans += d1.count;
+        deleted.dishes = d2.count;
+      }
+      if (targets.includes('shopping')) {
+        const d = await tx.shoppingList.deleteMany({ where: { familyId } });
+        deleted.shoppingLists = d.count;
+      }
+      if (targets.includes('invites')) {
+        const d = await tx.familyInvite.deleteMany({ where: { familyId } });
+        deleted.invites = d.count;
+      }
+      if (targets.includes('notifications')) {
+        const d = await tx.notification.deleteMany({ where: { familyId } });
+        deleted.notifications = d.count;
+      }
+    });
+
+    res.json({ success: true, deleted });
   } catch (error) {
     next(error);
   }
