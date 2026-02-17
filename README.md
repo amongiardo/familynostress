@@ -1,6 +1,6 @@
-# Family Meal Planner
+# Family Planner
 
-Sistema di pianificazione pasti familiare con suggerimenti intelligenti per evitare ripetizioni e garantire un'alimentazione bilanciata.
+Sistema di organizzazione familiare: pianificazione dei pasti, calendario e lista spesa, con suggerimenti intelligenti.
 
 ## Stack Tecnologico
 
@@ -37,7 +37,7 @@ family-meal-planner/
 ## Prerequisiti
 
 - Node.js 18+
-- PostgreSQL 14+
+- PostgreSQL 16 (consigliato) o 14+
 - Account Google Cloud Console (per OAuth)
 - Account GitHub Developer (per OAuth)
 
@@ -88,6 +88,41 @@ npm install
 # Avvia in development
 npm run dev
 ```
+
+## Avvio rapido (script)
+
+```bash
+./scripts/dev_stack.sh
+```
+
+Per fermare tutto:
+
+```bash
+./scripts/dev_stack.sh --stop
+```
+
+## Aggiornamento locale (DB + backend)
+
+Quando introduciamo nuove migrazioni/schema, usa questo script da terminale esterno:
+
+```bash
+./scripts/dev_stack.sh --update-start
+```
+
+Cosa fa:
+- verifica/avvia PostgreSQL 16 locale
+- applica migrazioni (`prisma migrate deploy`)
+- rigenera Prisma Client (`prisma generate`)
+- esegue build backend (`npm run build`)
+- avvia lo stack dev
+
+Opzione senza restart:
+
+```bash
+./scripts/dev_stack.sh --update
+```
+
+Storico modifiche DB: `backend/prisma/DB_CHANGES.md`
 
 ## Configurazione OAuth
 

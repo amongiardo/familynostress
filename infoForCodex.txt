@@ -1,8 +1,8 @@
 INFO FOR CODEX
-Ultimo aggiornamento: 2026-02-04
+Ultimo aggiornamento: 2026-02-13 (sera)
 
 Scopo del progetto
-Family Meal Planner è una web app per la gestione dei pasti in famiglia. Consente di pianificare pranzi e cene su calendario, gestire un catalogo piatti con ingredienti, generare la lista della spesa e suggerire pasti per evitare ripetizioni e mantenere un’alimentazione bilanciata. Supporta l’uso multi‑famiglia con inviti e dati isolati per nucleo.
+Family Planner è una web app per l’organizzazione familiare, con focus su pasti, calendario e lista spesa. Consente di pianificare pranzi e cene su calendario, gestire un catalogo piatti con ingredienti, generare la lista della spesa e suggerire pasti per evitare ripetizioni e mantenere un’alimentazione bilanciata. Supporta l’uso multi‑famiglia con inviti e dati isolati per nucleo.
 
 Com’è costruita
 - Frontend: Next.js 14 (App Router) con TypeScript, React Bootstrap e FullCalendar.
@@ -29,6 +29,7 @@ Note operative
 - Frontend: `frontend/` con pagine App Router.
 - Avvio: vedere `install.txt`.
  - Flusso multi‑tab: un branch per tab; sincronizzare su `develop`.
+- PostgreSQL: usa PG16 su porta 5432 (PG18 rimosso).
 
 Stato branch
 - Branch attuale: feature/gestione-calendario.
@@ -42,3 +43,140 @@ Changelog
 - 2026-02-02: Aggiunte note sul flusso multi‑tab e branching parallelo.
 - 2026-02-04: Redesign UI basato su v4 (gradienti, bubble cards, day pills) su dashboard, calendario, spesa e impostazioni.
 - 2026-02-04: Fix calendario (range visibile, date click senza shift, parsing date‑only UTC) e alert duplicati.
+- 2026-02-04: Dashboard aggiornata a settimana lun‑dom con navigazione e modal add‑meal inline.
+- 2026-02-04: Day strip dashboard: badge "Oggi" e highlight giallo per oggi/selected.
+- 2026-02-04: Calendario non si resetta al mese corrente durante la navigazione (loading overlay senza unmount).
+- 2026-02-04: Calendario ottimizzato con caching (placeholder data) per ridurre flicker durante la navigazione.
+- 2026-02-04: Aggiunto micro‑spinner di stato nel titolo Calendario durante fetch.
+- 2026-02-04: Import CSV piatti in /piatti e pulsante “Cancella Tutti” con eliminazione pianificazioni collegate.
+- 2026-02-04: Aggiunta nota UI sul formato CSV nella pagina Piatti.
+- 2026-02-04: Aggiunto export CSV dei piatti in /piatti.
+- 2026-02-04: Dashboard hero titolo in singola riga.
+- 2026-02-04: Dashboard apre settimana corrente con oggi selezionato di default.
+- 2026-02-04: Aggiunta città famiglia (default Roma) e meteo in dashboard con endpoint /api/weather.
+- 2026-02-04: Fix ReferenceError in dashboard (weather query dentro componente).
+- 2026-02-04: Impostazioni: aggiunto riepilogo con nome famiglia, città e numero membri.
+- 2026-02-04: Impostazioni: riepilogo mostra solo i nomi dei membri (senza totale).
+- 2026-02-04: Dashboard: aggiunto tasto rimozione pranzo/cena per poter riscegliere.
+- 2026-02-04: Sostituiti gli Alert con modali di stato (StatusModal).
+- 2026-02-04: Calendario: rimozione rapida evento con bottone sulla card evento.
+- 2026-02-04: Sostituiti i confirm() con ConfirmModal (dashboard, calendario, piatti, spesa, impostazioni).
+- 2026-02-04: Fix 500 su /auth/me: isAuthenticated gestisce req.isAuthenticated mancante.
+- 2026-02-04: Script reset_db_passwords.sh aggiornato (psql via utente postgres, cd /tmp).
+- 2026-02-04: Script reset_db_passwords.sh aggiorna stop/start automatico se già in esecuzione.
+- 2026-02-04: Password postgres reset su PG16/PG18; creato db_credentials.txt con liste DB.
+- 2026-02-04: Script dev_start/dev_stop aggiornati per usare PostgreSQL 16.
+- 2026-02-04: Documentazione prerequisiti aggiornata (PG16 consigliato).
+- 2026-02-04: .env.example aggiornato con nota su PostgreSQL 16.
+- 2026-02-04: Aggiunti script dev_start/dev_stop e documentazione in install.txt/README.
+- 2026-02-06: Rimosso PostgreSQL 18 dal Mac di sviluppo; standardizzato su PostgreSQL 16 (porta 5432).
+- 2026-02-06: /auth/me ora ritorna 200 con user null quando non autenticato (evita 401 in console).
+- 2026-02-06: dev_stop.sh ora termina anche i processi node rimasti sulle porte 3000-3003.
+- 2026-02-06: Pagina /piatti: pulsanti CSV con stile soft; “Cancella Tutti” versione soft rossa.
+- 2026-02-06: Navbar: dropdown utente su una riga con ellipsis per nomi lunghi.
+- 2026-02-06: /piatti: import/export CSV in modale; export con pulsante download e stile modal aggiornato.
+- 2026-02-06: Aggiunta pagina Statistiche (week/month) con piatti più frequenti e non mangiati.
+- 2026-02-06: Route Statistiche spostata da /menu a /statistiche.
+- 2026-02-06: Migrazione MealPlan con slot categoria (primo/secondo/contorno) e vincolo unico per slot.
+- 2026-02-06: Dashboard/Calendario aggiornati con 3 select per pranzo e cena (slot categoria).
+- 2026-02-06: /piatti aggiunta auto-programmazione pasti con range selezionabili.
+- 2026-02-06: Suggerimenti aggiornati per categoria slot.
+- 2026-02-06: sample_dishes.csv corretto (pangrattato).
+- 2026-02-06: Allineate label slot (primo/secondo/contorno) in dashboard e calendario.
+- 2026-02-06: Dashboard: azioni rapide spostate in alto, modali per aggiungere piatto e item spesa.
+- 2026-02-06: Spesa: lista manuale (niente generazione automatica), aggiunta item via UI/API.
+- 2026-02-06: Dashboard: azioni rapide in box dinamico, allineato ai suggeriti; day strip e azioni rapide nello stesso layout.
+- 2026-02-06: Dashboard: layout top rifatto (week strip sopra, day strip + azioni rapide in grid) e fix mobile per pulsanti.
+- 2026-02-06: Auto-programmazione: scelta slot per pranzo/cena + preset combinazioni.
+- 2026-02-06: Stile Annulla uniformato a Cancella Tutti (btn-secondary rosso soft).
+- 2026-02-06: Calendario: svuota intervallo con range selezionabili (oltre a svuota tutto).
+- 2026-02-06: Auto-programmazione mese: fix timezone/DATE con dateKey + parseDateOnly.
+- 2026-02-06: Calendario: ordine eventi pranzo→slot e evidenza oggi con background accent-lunch.
+- 2026-02-06: Badge categorie (primo/secondo/contorno) con colori distinti forzati.
+- 2026-02-06: Login: nascosti i pulsanti OAuth (Google/GitHub) per sviluppo futuro.
+- 2026-02-06: Login: rimossi placeholder da email e password.
+- 2026-02-06: Rebranding: rinominato in Family Planner e aggiornata la descrizione.
+- 2026-02-06: Login: descrizione aggiornata per riflettere pianificazione familiare.
+- 2026-02-06: Dashboard: quick actions non sbordano su desktop (wrap controllato).
+- 2026-02-06: Aggiunta favicon SVG (icon.svg) per Family Planner.
+- 2026-02-06: Dashboard: box pranzo/cena mostrano anche la data del giorno selezionato.
+- 2026-02-06: Calendario: export PDF mese visibile (A4 orizzontale, una pagina, download diretto).
+- 2026-02-06: Impostazioni: list-group membri/inviti ora non sborda dai box.
+- 2026-02-06: Spesa: box ingredienti settimanali con aggiunta rapida, layout affiancato desktop.
+- 2026-02-06: Spesa: ingredienti filtrati per periodo con ricerca, gestione comprati e pulsanti svuota dedicati.
+- 2026-02-06: Auto-programma: evita ripetizioni <7 giorni, no duplicati pranzo/cena stesso giorno, modale insufficienza piatti.
+- 2026-02-06: Aggiunti asset prototipo (dashboard.png, screen_dashboard.png, v4-bubble-world.jsx, meal-planner-prototype.jsx, modal_example.webp) e rimosso vecchio /menu.
+- 2026-02-06: .gitignore aggiornato per logs/ e .dev_pids/.
+- 2026-02-09: Aggiunto MealOut (pranzo/cena fuori) con tabella dedicata e API CRUD.
+- 2026-02-09: Calendario: modale giorno salva solo su OK; pulsanti “Pranzo/Cena fuori” con annulla.
+- 2026-02-09: Calendario: rimozione rapida evento “fuori” e sync con meal_outs.
+- 2026-02-09: Auto-programma: evita ripetizioni <7 giorni, no duplicati stesso giorno (pranzo/cena).
+- 2026-02-09: Login: errori specifici (utente inesistente vs password errata).
+- 2026-02-09: StatusModal: testo centrato.
+- 2026-02-10: Inviti: fix sintassi `handleLocalRegister` in `frontend/src/app/invite/[token]/page.tsx` (la pagina invite tornava compilabile).
+- 2026-02-10: Workflow: introdotti `SKILL.md` (regola `cm` = commit+push con richiesta esplicita a fine task) e `VERSION` (inizio versioning da `0.0.0`).
+- 2026-02-10: Sicurezza/ruoli: introdotti ruoli utente (`admin`/`member`) e `authCode` famiglia (5 char) per proteggere azioni distruttive; UI aggiornata per richiedere il codice quando serve.
+- 2026-02-10: Workflow: `cm` ora stage-a di default solo file tracked (`git add -u`), lasciando gli untracked fuori finche' richiesti esplicitamente.
+- 2026-02-12: Frontend build hardening: sostituito `next/font/google` con `next/font/local` per Nunito (asset locali in `frontend/src/app/fonts/nunito`) per evitare dipendenza rete durante `next build`.
+- 2026-02-12: Aggiunto script `scripts/install_nunito_local.sh` per installazione/copia automatica dei file font locali.
+- 2026-02-12: Fix build Next.js su `/login`: `useSearchParams()` ora incapsulato in `Suspense` in `frontend/src/app/login/page.tsx`.
+- 2026-02-13: Refactor multi-famiglia completo: introdotta membership utente↔famiglia con ruoli per famiglia (`family_members`) e rimosso vincolo 1 utente = 1 famiglia.
+- 2026-02-13: Sessione con famiglia attiva (`activeFamilyId`) e supporto switch famiglia lato API/UI.
+- 2026-02-13: Nuove API famiglia: lista famiglie utente (`/api/family/mine`), switch attiva (`/api/family/switch`), creazione nuova famiglia da account esistente (`/api/family/create`), accettazione invito da utente gia registrato (`/api/family/invite/:token/accept`).
+- 2026-02-13: Login/inviti aggiornati per supportare la stessa email su piu famiglie (join a famiglia invitante senza creare un nuovo account).
+- 2026-02-13: Navbar aggiornata con selettore famiglia attiva; Impostazioni aggiornate con creazione nuova famiglia.
+- 2026-02-13: Build verificate dopo refactor: backend (`tsc`) e frontend (`next build`) OK.
+- 2026-02-13: Impostazioni: creazione nuova famiglia spostata in modale con pulsante top-right “Aggiungi Famiglia”, senza default precompilato sulla città.
+- 2026-02-13: Uniformati i pulsanti “Annulla” al tema rosso soft su dashboard/calendario/piatti/invite e ConfirmModal.
+- 2026-02-13: Impostazioni: box “Famiglia” rinominato in “Modifica Famiglia”; input non precompilati; pulsanti Salva disabilitati con campo vuoto; auth code reso visualmente disabled.
+- 2026-02-13: Esteso modello membership con stato (`active`/`left`) e nuove API famiglie: leave/rejoin/forget former membership + delete family con auth code.
+- 2026-02-13: Impostazioni: aggiunti box “Tutte le famiglie” e “Famiglie di cui facevo parte” con azioni dedicate (elimina/abbandona/rientra/rimuovi definitivo).
+- 2026-02-13: Layout Impostazioni riorganizzato: sinistra (Modifica + Tutte + Facevo parte), destra (Membri + Invita + Inviti pendenti).
+- 2026-02-13: Creazione famiglia non cambia più automaticamente la famiglia attiva (`switchToNewFamily: false`) e resta in pagina.
+- 2026-02-13: Analisi log pagina bianca: root cause cache/chunk Next corrotti (`Cannot find module './948.js'`, 500/404 su `/_next/static/*`).
+- 2026-02-13: Script `dev_stop.sh` aggiornato per pulire automaticamente `frontend/.next` ed evitare stati cache corrotti al riavvio.
+- 2026-02-13: Auth code azioni distruttive spostato da famiglia a utente/account (stessa email -> stesso codice su tutte le famiglie).
+- 2026-02-13: Nuova migrazione DB `20260213162000_user_auth_code` (`users.auth_code` + backfill codici esistenti).
+- 2026-02-13: Aggiunto `backend/prisma/DB_CHANGES.md` per tracciare in modo centralizzato le modifiche DB.
+- 2026-02-13: Aggiunto script `scripts/update_local.sh` per update locale completo (migrate deploy + generate + build backend + restart opzionale).
+- 2026-02-13: Eliminazione famiglie hardening: ultima famiglia non eliminabile; se elimini famiglia attiva è obbligatoria la scelta famiglia di destinazione (`targetFamilyId`) validata lato backend.
+- 2026-02-13: Impostazioni (elimina famiglia): modale con select destinazione precompilata automaticamente su una famiglia valida.
+- 2026-02-13: UX auth code: aggiunto pulsante `Incolla` in tutti i punti di conferma (ConfirmModal condivisa + modali calendario svuota tutto/intervallo + modale elimina famiglia).
+- 2026-02-13: `scripts/dev_start.sh` ora chiude processi node in ascolto su porte 3000-3003 prima dell'avvio per evitare `EADDRINUSE`.
+- 2026-02-13: Dashboard: visualizzazione città aggiornata con `cityDisplayName` (se disponibile) per coerenza con selezione autocomplete.
+- 2026-02-13: Meteo città refactor: introdotti metadati città famiglia (`displayName/country/timezone/lat/lon`) e nuova migrazione `20260213192000_family_city_metadata`.
+- 2026-02-13: Backend weather: nuovo endpoint `GET /api/weather/cities` per ricerca città on-the-fly (Open-Meteo geocoding) e forecast basato su coordinate salvate quando presenti.
+- 2026-02-13: Impostazioni: autocomplete città globale su "Modifica Famiglia" e "Aggiungi Famiglia", con suggerimenti cliccabili disambiguati.
+- 2026-02-13: UX form città fix: rimossi radio Mondo/Italia e bloccato submit involontario della form su click suggerimenti (`type=button`), evitando reload GET su `/impostazioni`.
+- 2026-02-13: Refactor robustezza multi-famiglia post-eliminazione: introdotto soft-delete famiglia (`families.deleted_at`) con tracciamento creatore/eliminatore (`created_by_user_id`, `deleted_by_user_id`) e storico membership preservato.
+- 2026-02-13: Middleware auth separati: `isLoggedIn` (solo login) e `isAuthenticated` (login + famiglia attiva) per permettere accesso a impostazioni/lista famiglie anche senza famiglia attiva.
+- 2026-02-13: API famiglia rafforzate: `/api/family/mine` ora include metadati storico (famiglia eliminata, creator/deleter, rejoin consentito solo se non eliminata); delete famiglia converte membership attive in `left` invece di cancellare hard.
+- 2026-02-13: Inviti hardening: validazione/accettazione invite bloccata se la famiglia è stata eliminata (response 410/errore coerente).
+- 2026-02-13: Frontend anti-pagina-bianca: redirect centralizzati verso `/impostazioni` quando utente autenticato ma senza `activeFamilyId` (home/login/layout/dashboard/invite/settings).
+- 2026-02-13: Impostazioni storico famiglie esteso: mostra chi ha creato la famiglia (nome/email), stato famiglia eliminata e chi l'ha eliminata; pulsante rientro disabilitato su famiglie eliminate.
+- 2026-02-13: Build verificate dopo refactor finale: backend (`prisma generate` + `tsc`) e frontend (`next build`) OK.
+- 2026-02-13: Abbandono famiglia hardening: se l'utente abbandona la famiglia attiva deve selezionare obbligatoriamente una famiglia di destinazione (`targetFamilyId`) valida; enforcement lato backend + modale frontend dedicata.
+- 2026-02-13: Impostazioni: aggiunto box admin "Storico Membri che Hanno Abbandonato" con azione diretta "Fai Rientrare" (nuove API `/api/family/former-members` e `/api/family/former-members/:userId/rejoin`).
+- 2026-02-13: UI ruoli allineata in italiano: `admin` -> `Amministratore`, `member` -> `Membro` (riepilogo impostazioni, liste famiglie/membri, navbar family selector).
+- 2026-02-13: Riepilogo impostazioni (sezione membri): mostrato ruolo tra parentesi per ogni membro e label `Io` al posto del nome dell'utente corrente.
+- 2026-02-13: Membership lifecycle esteso: nuovo stato `removed` per ex-membri eliminati definitivamente (storico preservato, rientro diretto disabilitato).
+- 2026-02-13: Impostazioni: ex-famiglie con badge rosso `Eliminato`; se eliminato non mostra più azioni `Rientra in Famiglia`/`Esci definitivamente`.
+- 2026-02-13: Impostazioni admin: storico membri usciti con doppia azione (`Fai Rientrare` oppure `Rimuovi definitivamente`), mantenendo traccia anche dopo rimozione definitiva.
+- 2026-02-13: Login hardening no-family: se utente non ha famiglie attive viene disconnesso/bloccato (`NO_ACTIVE_FAMILY`) con messaggio guidato; reintegro possibile tramite nuovo invito.
+- 2026-02-13: Frontend guard globale: su risposta 403 no-family l'app effettua logout forzato e redirect a `/login?error=no_family` anche durante azioni utente.
+- 2026-02-13: Notifiche utente introdotte: nuove API `/api/notifications` con polling frontend e campanella in navbar con badge unread.
+- 2026-02-13: Chat famiglia introdotta: nuove API `/api/chat/messages`, nuova pagina `/chat`, menu sidebar dedicato e notifiche automatiche ai membri (escluso mittente).
+- 2026-02-13: Chat sistema: quando un membro abbandona la famiglia viene scritto un messaggio di sistema persistente visibile agli altri membri.
+- 2026-02-13: Chat privata per membro: supporto backend `recipient_user_id` con visibilità filtrata (mittente/destinatario) e invio diretto da pagina chat.
+- 2026-02-13: Notifiche chat migliorate: messaggio notifica con preview contenuto (`Nome: testo...`) invece di testo generico.
+- 2026-02-13: UX campanella: dropdown notifiche con sfondo blu, item unread evidenziati e pulsante `Segna tutte lette` stilizzato.
+- 2026-02-13: Chat UI separata: flussi distinti "Chat Famiglia" e "Chat Privata" (thread per membro) con box membri spostato in alto.
+- 2026-02-13: Chat privata a box multipli: creazione thread dinamica (anche su messaggio ricevuto), select filtrata senza duplicati, layout chat famiglia full-width + griglia private max 3 colonne desktop (stack su mobile).
+- 2026-02-13: Chat UX compact: viewport chat famiglia/private a ~3 messaggi con scroll interno e auto-scroll sempre in basso su nuovi messaggi; invio rapido Enter (Alt+Enter a capo).
+- 2026-02-13: Notifiche dropdown: aggiunto pulsante "Elimina lette" con nuova API `DELETE /api/notifications/read`; migliorati layering z-index e contrasto visuale letto/non letto (testo letto grigio-disabilitato).
+- 2026-02-13: Dashboard: "Pranzo/Cena fuori" ora salva immediatamente senza richiesta codice auth e senza modale di conferma (toggle diretto).
+- 2026-02-13: Scripts unificati: introdotto `scripts/dev_stack.sh` (start/stop/update interattivo) con auto-install Nunito se mancante; rimossi script legacy `dev_start/dev_stop/update_local/install_nunito_local`; aggiunto `scripts/README.md`.
+- 2026-02-13: `scripts/check_db_all.sh` reso robusto: discovery automatico versioni PostgreSQL installate, status/check per versione, fallback senza crash e compatibilita Bash macOS.
+- 2026-02-13: Chat: aggiunti nome famiglia in header/placeholder, chiusura box chat privata con pulsante dedicato e persistenza stato chiusura (riapertura da "Nuova Chat Privata" senza perdita messaggi).
+- 2026-02-13: Chat UX aggiornata: apertura chat privata diretta dal box membri, rimozione box "Nuova Chat Privata", pulsanti stato chat (apri/chiudi) e toggle riduci/ingrandisci chat famiglia con stile coerente verde/rosso.
+- 2026-02-13: Impostazioni: introdotti pulsanti Backup/Reset con modali dedicate; backup export JSON, restore selettivo per sezioni e reset selettivo (planning/chat/piatti/spesa/inviti/notifiche) con auth code.

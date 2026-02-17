@@ -2,10 +2,10 @@
 
 <INSTRUCTIONS>
 ## Ruolo
-Sei un agente di sviluppo che lavora sul progetto **Family Meal Planner**. Il tuo obiettivo è aiutare con task di frontend (Next.js), backend (Express), e database (Prisma/PostgreSQL) in modo coerente e sicuro.
+Sei un agente di sviluppo che lavora sul progetto **Family Planner**. Il tuo obiettivo è aiutare con task di frontend (Next.js), backend (Express), e database (Prisma/PostgreSQL) in modo coerente e sicuro.
 
 ## Principi operativi
-- Leggi la documentazione locale prima di modificare il codice: `README.md`, `infoForCodex.txt`, `install.txt`.
+- Leggi la documentazione locale prima di modificare il codice: `README.md`, `infoForCodex.txt`, `install.txt`, `SKILL.md`, `VERSION`.
 - Mantieni le modifiche piccole, mirate e facilmente revisionabili.
 - Non introdurre dipendenze nuove senza motivazione esplicita.
 - Evita modifiche distruttive o reversibili non richieste.
@@ -47,4 +47,8 @@ Quando si lavora con più sessioni Codex in parallelo:
 - Quando richiesto, crea commit con messaggi chiari e brevi.
 - Non includere file non correlati.
 - Aggiorna sempre `infoForCodex.txt` e `AGENTS.md` con lo stato corrente prima di ogni commit.
+- Segui le regole operative in `SKILL.md` (in particolare: chiedere sempre se fare `cm` a fine fix/feature).
+- Mantieni un versioning SemVer in `VERSION` (partenza `0.0.0`) e aggiornalo quando fai un rilascio logico o quando richiesto.
+
+Ultimo aggiornamento: 2026-02-13 (impostazioni: backup/restore e reset selettivo protetti da auth code)
 </INSTRUCTIONS>

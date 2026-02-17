@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Button, Alert, Form } from 'react-bootstrap';
-import { FaGoogle, FaGithub } from 'react-icons/fa';
+import { Button, Form } from 'react-bootstrap';
 import { useAuth } from '@/lib/AuthContext';
-import { authApi } from '@/lib/api';
+import { authApi, familyApi } from '@/lib/api';
+import StatusModal from '@/components/StatusModal';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, refresh } = useAuth();
@@ -16,39 +16,62 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>(inviteToken ? 'register' : 'login');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [form, setForm] = useState({ email: '', password: '', name: '' });
+  const [form, setForm] = useState({
+    email: '',
+    name: '',
+    familyName: '',
+    password: '',
+    passwordConfirm: '',
+  });
 
   useEffect(() => {
     if (!loading && user) {
-      router.push('/dashboard');
+      router.push(user.activeFamilyId ? '/dashboard' : '/impostazioni');
     }
   }, [user, loading, router]);
 
-  const handleGoogleLogin = () => {
-    window.location.href = authApi.getGoogleLoginUrl();
-  };
-
-  const handleGithubLogin = () => {
-    window.location.href = authApi.getGithubLoginUrl();
-  };
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const notice = window.sessionStorage.getItem('authNotice');
+    if (notice) {
+      setLocalError(notice);
+      window.sessionStorage.removeItem('authNotice');
+    }
+  }, []);
 
   const handleLocalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setLocalError(null);
     try {
+      let resultUserActiveFamilyId: string | undefined;
       if (mode === 'login') {
-        await authApi.loginLocal({ email: form.email, password: form.password });
+        const payload = await authApi.loginLocal({ email: form.email, password: form.password });
+        resultUserActiveFamilyId = payload.user?.activeFamilyId;
+        if (inviteToken) {
+          await familyApi.acceptInvite(inviteToken);
+          resultUserActiveFamilyId = undefined;
+        }
       } else {
-        await authApi.registerLocal({
+        if (form.password !== form.passwordConfirm) {
+          setLocalError('Le password non coincidono');
+          return;
+        }
+        const payload = await authApi.registerLocal({
           email: form.email,
           password: form.password,
           name: form.name,
+          familyName: inviteToken ? undefined : form.familyName,
           inviteToken,
         });
+        resultUserActiveFamilyId = payload.user?.activeFamilyId;
       }
       await refresh();
-      router.push('/dashboard');
+      if (inviteToken) {
+        router.push('/dashboard');
+      } else {
+        router.push(resultUserActiveFamilyId ? '/dashboard' : '/impostazioni');
+      }
     } catch (err: any) {
       setLocalError(err?.message || 'Autenticazione fallita');
     } finally {
@@ -63,49 +86,34 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-card text-center">
-        <h1 className="mb-2 login-title">Family Meal Planner</h1>
-        <p className="text-muted mb-4">Pianifica i pasti della tua famiglia</p>
+        <h1 className="mb-2 login-title">Family Planner</h1>
+        <p className="text-muted mb-4">Pianifica e organizza la tua famiglia</p>
 
-        {error && (
-          <Alert variant="danger" className="mb-4">
-            Autenticazione fallita. Riprova.
-          </Alert>
-        )}
+        <StatusModal
+          show={Boolean(error || localError)}
+          variant="danger"
+          message={
+            error === 'no_family'
+              ? 'Non fai più parte di nessuna famiglia. Registrati per crearne una nuova oppure attendi un nuovo invito.'
+              : error
+                ? 'Autenticazione fallita. Riprova.'
+                : localError || ''
+          }
+          onClose={() => {
+            if (error) {
+              router.replace('/login');
+            }
+            setLocalError(null);
+          }}
+        />
 
-        {localError && (
-          <Alert variant="danger" className="mb-4">
-            {localError}
-          </Alert>
-        )}
-
-        <div className="d-grid gap-3">
-          <Button
-            variant="outline-primary"
-            size="lg"
-            onClick={handleGoogleLogin}
-            className="d-flex align-items-center justify-content-center gap-2"
-          >
-            <FaGoogle /> Accedi con Google
-          </Button>
-
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={handleGithubLogin}
-            className="d-flex align-items-center justify-content-center gap-2"
-          >
-            <FaGithub /> Accedi con GitHub
-          </Button>
-        </div>
-
-        <div className="my-4 text-muted">oppure</div>
+        <div className="my-4 text-muted" />
 
         <Form onSubmit={handleLocalSubmit} className="text-start">
           <Form.Group className="mb-3" controlId="email">
             <Form.Label>Email</Form.Label>
             <Form.Control
               type="email"
-              placeholder="nome@dominio.com"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
@@ -117,9 +125,24 @@ export default function LoginPage() {
               <Form.Label>Nome</Form.Label>
               <Form.Control
                 type="text"
-                placeholder="Il tuo nome"
+                className="placeholder-soft"
+                placeholder="es: Il tuo nome"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </Form.Group>
+          )}
+
+          {mode === 'register' && !inviteToken && (
+            <Form.Group className="mb-3" controlId="familyName">
+              <Form.Label>Nome Famiglia</Form.Label>
+              <Form.Control
+                type="text"
+                className="placeholder-soft"
+                placeholder="es: Rossi"
+                value={form.familyName}
+                onChange={(e) => setForm({ ...form, familyName: e.target.value })}
                 required
               />
             </Form.Group>
@@ -129,12 +152,23 @@ export default function LoginPage() {
             <Form.Label>Password</Form.Label>
             <Form.Control
               type="password"
-              placeholder="••••••••"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required
             />
           </Form.Group>
+
+          {mode === 'register' && (
+            <Form.Group className="mb-3" controlId="passwordConfirm">
+              <Form.Label>Conferma Password</Form.Label>
+              <Form.Control
+                type="password"
+                value={form.passwordConfirm}
+                onChange={(e) => setForm({ ...form, passwordConfirm: e.target.value })}
+                required
+              />
+            </Form.Group>
+          )}
 
           <div className="d-grid">
             <Button variant="primary" type="submit" disabled={submitting}>
@@ -168,5 +202,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

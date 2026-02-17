@@ -8,34 +8,83 @@ datasource db {
 }
 
 model Family {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now()) @map("created_at")
+  id              String   @id @default(uuid())
+  name            String
+  city            String   @default("Roma")
+  cityDisplayName String?  @map("city_display_name")
+  cityCountry     String?  @map("city_country")
+  cityTimezone    String?  @map("city_timezone")
+  cityLatitude    Float?   @map("city_latitude")
+  cityLongitude   Float?   @map("city_longitude")
+  authCode        String?  @map("auth_code") @db.VarChar(5)
+  createdByUserId String?  @map("created_by_user_id")
+  deletedAt       DateTime? @map("deleted_at")
+  deletedByUserId String?  @map("deleted_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
 
-  users         User[]
+  memberships   FamilyMember[]
   dishes        Dish[]
   mealPlans     MealPlan[]
+  mealOuts      MealOut[]
   shoppingLists ShoppingList[]
   invites       FamilyInvite[]
+  notifications Notification[]
+  chatMessages  ChatMessage[]
+  createdByUser User?      @relation("family_created_by", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  deletedByUser User?      @relation("family_deleted_by", fields: [deletedByUserId], references: [id], onDelete: SetNull)
 
   @@map("families")
 }
 
+enum FamilyRole {
+  admin
+  member
+}
+
+enum MembershipStatus {
+  active
+  left
+  removed
+}
+
 model User {
   id            String   @id @default(uuid())
-  familyId      String   @map("family_id")
   email         String   @unique
   name          String
   avatarUrl     String?  @map("avatar_url")
   passwordHash  String?  @map("password_hash")
+  authCode      String?  @map("auth_code") @db.VarChar(5)
   oauthProvider String   @map("oauth_provider")
   oauthId       String   @map("oauth_id")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  family Family @relation(fields: [familyId], references: [id])
+  memberships FamilyMember[]
+  createdFamilies Family[] @relation("family_created_by")
+  deletedFamilies Family[] @relation("family_deleted_by")
+  notifications Notification[]
+  chatMessagesSent ChatMessage[] @relation("chat_message_sender")
+  chatMessagesReceived ChatMessage[] @relation("chat_message_recipient")
 
   @@unique([oauthProvider, oauthId])
   @@map("users")
+}
+
+model FamilyMember {
+  id        String     @id @default(uuid())
+  familyId  String     @map("family_id")
+  userId    String     @map("user_id")
+  role      FamilyRole @default(member)
+  status    MembershipStatus @default(active)
+  leftAt    DateTime?  @map("left_at")
+  removedAt DateTime?  @map("removed_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, userId])
+  @@index([userId])
+  @@map("family_members")
 }
 
 enum DishCategory {
@@ -68,6 +117,7 @@ model MealPlan {
   familyId     String   @map("family_id")
   date         DateTime @db.Date
   mealType     MealType @map("meal_type")
+  slotCategory DishCategory @map("slot_category")
   dishId       String   @map("dish_id")
   isSuggestion Boolean  @default(false) @map("is_suggestion")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -75,8 +125,21 @@ model MealPlan {
   family Family @relation(fields: [familyId], references: [id])
   dish   Dish   @relation(fields: [dishId], references: [id])
 
-  @@unique([familyId, date, mealType, dishId])
+  @@unique([familyId, date, mealType, slotCategory])
   @@map("meal_plans")
+}
+
+model MealOut {
+  id        String   @id @default(uuid())
+  familyId  String   @map("family_id")
+  date      DateTime @db.Date
+  mealType  MealType @map("meal_type")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id])
+
+  @@unique([familyId, date, mealType])
+  @@map("meal_outs")
 }
 
 model ShoppingList {
@@ -104,6 +167,44 @@ model FamilyInvite {
   family Family @relation(fields: [familyId], references: [id])
 
   @@map("family_invites")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  familyId  String?  @map("family_id")
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  familyId     String   @map("family_id")
+  senderUserId String?  @map("sender_user_id")
+  recipientUserId String? @map("recipient_user_id")
+  messageType  String   @default("user") @map("message_type")
+  content      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  sender User?  @relation("chat_message_sender", fields: [senderUserId], references: [id], onDelete: SetNull)
+  recipient User? @relation("chat_message_recipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@index([familyId, createdAt])
+  @@index([senderUserId])
+  @@index([recipientUserId])
+  @@map("chat_messages")
 }
 
 model Session {

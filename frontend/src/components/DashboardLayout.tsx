@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Container, Row, Col, Spinner } from 'react-bootstrap';
 import { useAuth } from '@/lib/AuthContext';
 import Navbar from './Navbar';
@@ -13,13 +13,17 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+    if (!loading && user && !user.activeFamilyId && pathname !== '/impostazioni') {
+      router.replace('/impostazioni');
+    }
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     return (
@@ -31,6 +35,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   if (!user) {
     return null;
+  }
+  if (!user.activeFamilyId && pathname !== '/impostazioni') {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
+        <Spinner animation="border" variant="success" />
+      </div>
+    );
   }
 
   return (
