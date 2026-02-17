@@ -92,13 +92,13 @@ npm run dev
 ## Avvio rapido (script)
 
 ```bash
-./scripts/dev_start.sh
+./scripts/dev_stack.sh
 ```
 
 Per fermare tutto:
 
 ```bash
-./scripts/dev_stop.sh
+./scripts/dev_stack.sh --stop
 ```
 
 ## Aggiornamento locale (DB + backend)
@@ -106,7 +106,7 @@ Per fermare tutto:
 Quando introduciamo nuove migrazioni/schema, usa questo script da terminale esterno:
 
 ```bash
-./scripts/update_local.sh
+./scripts/dev_stack.sh --update-start
 ```
 
 Cosa fa:
@@ -114,12 +114,12 @@ Cosa fa:
 - applica migrazioni (`prisma migrate deploy`)
 - rigenera Prisma Client (`prisma generate`)
 - esegue build backend (`npm run build`)
-- riavvia lo stack dev (`dev_stop.sh` + `dev_start.sh`)
+- avvia lo stack dev
 
 Opzione senza restart:
 
 ```bash
-./scripts/update_local.sh --no-restart
+./scripts/dev_stack.sh --update
 ```
 
 Storico modifiche DB: `backend/prisma/DB_CHANGES.md`

@@ -67,9 +67,9 @@ Questo file traccia in modo sintetico le modifiche schema/database applicate tra
 
 ## Note operative
 - Per allineare DB locale a queste modifiche usare:
-  - `./scripts/update_local.sh`
+  - `./scripts/dev_stack.sh --update-start`
 - Lo script esegue:
   - `prisma migrate deploy`
   - `prisma generate`
   - build backend
-  - opzionale restart stack dev
+  - avvio stack dev
