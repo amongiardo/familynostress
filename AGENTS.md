@@ -50,5 +50,5 @@ Quando si lavora con più sessioni Codex in parallelo:
 - Segui le regole operative in `SKILL.md` (in particolare: chiedere sempre se fare `cm` a fine fix/feature).
 - Mantieni un versioning SemVer in `VERSION` (partenza `0.0.0`) e aggiornalo quando fai un rilascio logico o quando richiesto.
 
-Ultimo aggiornamento: 2026-02-13 (script stack unificato, stop app/db opzionale, check_db_all robusto multi-versione)
+Ultimo aggiornamento: 2026-02-13 (chat: nome famiglia dinamico e chiusura persistente box private)
 </INSTRUCTIONS>

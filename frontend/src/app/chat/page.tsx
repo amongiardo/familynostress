@@ -16,6 +16,7 @@ export default function ChatPage() {
   const [familyContent, setFamilyContent] = useState('');
   const [newPrivateMemberId, setNewPrivateMemberId] = useState('');
   const [manualThreadMemberIds, setManualThreadMemberIds] = useState<string[]>([]);
+  const [hiddenThreadMemberIds, setHiddenThreadMemberIds] = useState<string[]>([]);
   const [privateDraftByMemberId, setPrivateDraftByMemberId] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const familyMessagesRef = useRef<HTMLDivElement | null>(null);
@@ -137,6 +138,14 @@ export default function ChatPage() {
     return set;
   }, [manualThreadMemberIds, privateThreadMemberIdsFromMessages]);
 
+  const visibleThreadMembersSet = useMemo(() => {
+    const set = new Set(threadMembersSet);
+    for (const hiddenId of hiddenThreadMemberIds) {
+      set.delete(hiddenId);
+    }
+    return set;
+  }, [hiddenThreadMemberIds, threadMembersSet]);
+
   const privateThreadMembers = useMemo(() => {
     const membersById = new Map(otherMembers.map((member) => [member.id, member]));
     const latestByMemberId = new Map<string, number>();
@@ -146,15 +155,15 @@ export default function ChatPage() {
       latestByMemberId.set(memberId, new Date(lastMessage.createdAt).getTime());
     }
 
-    return Array.from(threadMembersSet)
+    return Array.from(visibleThreadMembersSet)
       .map((memberId) => membersById.get(memberId))
       .filter((member): member is NonNullable<typeof member> => Boolean(member))
       .sort((a, b) => (latestByMemberId.get(b.id) ?? 0) - (latestByMemberId.get(a.id) ?? 0));
-  }, [otherMembers, threadMembersSet, privateThreadMessagesByMemberId]);
+  }, [otherMembers, privateThreadMessagesByMemberId, visibleThreadMembersSet]);
 
   const privateAvailableMembers = useMemo(
-    () => otherMembers.filter((member) => !threadMembersSet.has(member.id)),
-    [otherMembers, threadMembersSet]
+    () => otherMembers.filter((member) => !visibleThreadMembersSet.has(member.id)),
+    [otherMembers, visibleThreadMembersSet]
   );
   const privateThreadSignature = useMemo(
     () =>
@@ -167,7 +176,42 @@ export default function ChatPage() {
   useEffect(() => {
     const validIds = new Set(otherMembers.map((member) => member.id));
     setManualThreadMemberIds((prev) => prev.filter((memberId) => validIds.has(memberId)));
+    setHiddenThreadMemberIds((prev) => prev.filter((memberId) => validIds.has(memberId)));
   }, [otherMembers]);
+
+  const hiddenStorageKey = useMemo(
+    () => (user?.id && user?.activeFamilyId ? `chat:hidden-threads:${user.id}:${user.activeFamilyId}` : null),
+    [user?.activeFamilyId, user?.id]
+  );
+
+  useEffect(() => {
+    if (!hiddenStorageKey || typeof window === 'undefined') {
+      setHiddenThreadMemberIds([]);
+      return;
+    }
+
+    const raw = window.localStorage.getItem(hiddenStorageKey);
+    if (!raw) {
+      setHiddenThreadMemberIds([]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setHiddenThreadMemberIds(parsed.filter((entry) => typeof entry === 'string'));
+      } else {
+        setHiddenThreadMemberIds([]);
+      }
+    } catch {
+      setHiddenThreadMemberIds([]);
+    }
+  }, [hiddenStorageKey]);
+
+  useEffect(() => {
+    if (!hiddenStorageKey || typeof window === 'undefined') return;
+    window.localStorage.setItem(hiddenStorageKey, JSON.stringify(hiddenThreadMemberIds));
+  }, [hiddenStorageKey, hiddenThreadMemberIds]);
 
   useEffect(() => {
     if (!privateAvailableMembers.length) {
@@ -202,7 +246,12 @@ export default function ChatPage() {
 
   const openPrivateThread = () => {
     if (!newPrivateMemberId) return;
+    setHiddenThreadMemberIds((prev) => prev.filter((id) => id !== newPrivateMemberId));
     setManualThreadMemberIds((prev) => (prev.includes(newPrivateMemberId) ? prev : [...prev, newPrivateMemberId]));
+  };
+
+  const closePrivateThread = (memberId: string) => {
+    setHiddenThreadMemberIds((prev) => (prev.includes(memberId) ? prev : [...prev, memberId]));
   };
 
   const submitPrivateMessage = (memberId: string) => {
@@ -217,7 +266,9 @@ export default function ChatPage() {
 
   return (
     <DashboardLayout>
-      <h2 className="page-title mb-4">Chat Famiglia</h2>
+      <h2 className="page-title mb-4">
+        Chat Famiglia{family?.name ? ` ${family.name}` : ''}
+      </h2>
 
       <StatusModal
         show={Boolean(error)}
@@ -227,7 +278,9 @@ export default function ChatPage() {
       />
 
       <Card className="settings-card mb-4">
-        <Card.Header>Membri della Famiglia</Card.Header>
+        <Card.Header>
+          Membri della Famiglia{family?.name ? ` ${family.name}` : ''}
+        </Card.Header>
         <Card.Body>
           {familyMembers.length ? (
             <div className="d-flex flex-column gap-2">
@@ -252,7 +305,9 @@ export default function ChatPage() {
       <Row className="g-4 mb-4">
         <Col xs={12}>
           <Card className="settings-card">
-            <Card.Header>Chat Famiglia</Card.Header>
+            <Card.Header>
+              Chat Famiglia{family?.name ? ` ${family.name}` : ''}
+            </Card.Header>
             <Card.Body>
               <div ref={familyMessagesRef} style={{ height: '240px', overflowY: 'auto' }} className="mb-3">
                 {isLoading ? (
@@ -305,7 +360,7 @@ export default function ChatPage() {
                     rows={3}
                     value={familyContent}
                     onChange={(e) => setFamilyContent(e.target.value)}
-                    placeholder="Scrivi un messaggio alla famiglia..."
+                    placeholder={`Scrivi un messaggio alla famiglia${family?.name ? ` ${family.name}` : ''}...`}
                     maxLength={2000}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.altKey) {
@@ -370,10 +425,20 @@ export default function ChatPage() {
             <Col key={member.id} xs={12} md={6} xl={4}>
               <Card className="settings-card h-100">
                 <Card.Header className="d-flex justify-content-between align-items-center">
-                  <span>{member.name}</span>
-                  <Badge bg={member.role === 'admin' ? 'success' : 'secondary'}>
-                    {member.role === 'admin' ? 'Amministratore' : 'Membro'}
-                  </Badge>
+                  <div className="d-flex align-items-center gap-2">
+                    <span>{member.name}</span>
+                    <Badge bg={member.role === 'admin' ? 'success' : 'secondary'}>
+                      {member.role === 'admin' ? 'Amministratore' : 'Membro'}
+                    </Badge>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline-danger"
+                    className="btn-danger-soft"
+                    onClick={() => closePrivateThread(member.id)}
+                  >
+                    Chiudi chat
+                  </Button>
                 </Card.Header>
                 <Card.Body>
                   <div
