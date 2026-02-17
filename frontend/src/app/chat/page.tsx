@@ -14,7 +14,7 @@ export default function ChatPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [familyContent, setFamilyContent] = useState('');
-  const [newPrivateMemberId, setNewPrivateMemberId] = useState('');
+  const [isFamilyChatCollapsed, setIsFamilyChatCollapsed] = useState(false);
   const [manualThreadMemberIds, setManualThreadMemberIds] = useState<string[]>([]);
   const [hiddenThreadMemberIds, setHiddenThreadMemberIds] = useState<string[]>([]);
   const [privateDraftByMemberId, setPrivateDraftByMemberId] = useState<Record<string, string>>({});
@@ -161,10 +161,6 @@ export default function ChatPage() {
       .sort((a, b) => (latestByMemberId.get(b.id) ?? 0) - (latestByMemberId.get(a.id) ?? 0));
   }, [otherMembers, privateThreadMessagesByMemberId, visibleThreadMembersSet]);
 
-  const privateAvailableMembers = useMemo(
-    () => otherMembers.filter((member) => !visibleThreadMembersSet.has(member.id)),
-    [otherMembers, visibleThreadMembersSet]
-  );
   const privateThreadSignature = useMemo(
     () =>
       privateThreadMembers
@@ -214,17 +210,6 @@ export default function ChatPage() {
   }, [hiddenStorageKey, hiddenThreadMemberIds]);
 
   useEffect(() => {
-    if (!privateAvailableMembers.length) {
-      setNewPrivateMemberId('');
-      return;
-    }
-
-    if (!newPrivateMemberId || !privateAvailableMembers.some((member) => member.id === newPrivateMemberId)) {
-      setNewPrivateMemberId(privateAvailableMembers[0].id);
-    }
-  }, [newPrivateMemberId, privateAvailableMembers]);
-
-  useEffect(() => {
     const node = familyMessagesRef.current;
     if (!node) return;
     node.scrollTop = node.scrollHeight;
@@ -244,10 +229,9 @@ export default function ChatPage() {
     sendFamilyMessageMutation.mutate(trimmed);
   };
 
-  const openPrivateThread = () => {
-    if (!newPrivateMemberId) return;
-    setHiddenThreadMemberIds((prev) => prev.filter((id) => id !== newPrivateMemberId));
-    setManualThreadMemberIds((prev) => (prev.includes(newPrivateMemberId) ? prev : [...prev, newPrivateMemberId]));
+  const openPrivateThread = (memberId: string) => {
+    setHiddenThreadMemberIds((prev) => prev.filter((id) => id !== memberId));
+    setManualThreadMemberIds((prev) => (prev.includes(memberId) ? prev : [...prev, memberId]));
   };
 
   const closePrivateThread = (memberId: string) => {
@@ -290,9 +274,26 @@ export default function ChatPage() {
                     <div className="fw-semibold">{member.id === user?.id ? 'Io' : member.name}</div>
                     <div className="small text-muted">{member.email}</div>
                   </div>
-                  <Badge bg={member.role === 'admin' ? 'success' : 'secondary'}>
-                    {member.role === 'admin' ? 'Amministratore' : 'Membro'}
-                  </Badge>
+                  <div className="d-flex align-items-center gap-2">
+                    <Badge bg={member.role === 'admin' ? 'success' : 'secondary'}>
+                      {member.role === 'admin' ? 'Amministratore' : 'Membro'}
+                    </Badge>
+                    {member.id !== user?.id && (() => {
+                      const isThreadOpen = visibleThreadMembersSet.has(member.id);
+                      return (
+                        <Button
+                          size="sm"
+                          variant={isThreadOpen ? 'danger' : 'success'}
+                          className={isThreadOpen ? 'btn-danger-soft' : 'btn-success-soft'}
+                          onClick={() =>
+                            isThreadOpen ? closePrivateThread(member.id) : openPrivateThread(member.id)
+                          }
+                        >
+                          {isThreadOpen ? 'Chiudi chat privata' : 'Chat privata'}
+                        </Button>
+                      );
+                    })()}
+                  </div>
                 </div>
               ))}
             </div>
@@ -305,9 +306,18 @@ export default function ChatPage() {
       <Row className="g-4 mb-4">
         <Col xs={12}>
           <Card className="settings-card">
-            <Card.Header>
-              Chat Famiglia{family?.name ? ` ${family.name}` : ''}
+            <Card.Header className="d-flex justify-content-between align-items-center gap-2">
+              <span>Chat Famiglia{family?.name ? ` ${family.name}` : ''}</span>
+              <Button
+                size="sm"
+                variant={isFamilyChatCollapsed ? 'success' : 'danger'}
+                className={isFamilyChatCollapsed ? 'btn-success-soft' : 'btn-danger-soft'}
+                onClick={() => setIsFamilyChatCollapsed((prev) => !prev)}
+              >
+                {isFamilyChatCollapsed ? 'Ingrandisci' : 'Riduci'}
+              </Button>
             </Card.Header>
+            {!isFamilyChatCollapsed && (
             <Card.Body>
               <div ref={familyMessagesRef} style={{ height: '240px', overflowY: 'auto' }} className="mb-3">
                 {isLoading ? (
@@ -381,42 +391,12 @@ export default function ChatPage() {
                 </div>
               </Form>
             </Card.Body>
+            )}
           </Card>
         </Col>
       </Row>
 
       <Row className="g-4">
-        <Col xs={12} md={6} xl={4}>
-          <Card className="settings-card h-100">
-            <Card.Header>Nuova Chat Privata</Card.Header>
-            <Card.Body>
-              <Form.Group className="mb-3">
-                <Form.Label>Seleziona membro</Form.Label>
-                <Form.Select
-                  value={newPrivateMemberId}
-                  onChange={(e) => setNewPrivateMemberId(e.target.value)}
-                  disabled={!privateAvailableMembers.length}
-                >
-                  {!privateAvailableMembers.length ? <option value="">Nessun membro disponibile</option> : null}
-                  {privateAvailableMembers.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} ({member.role === 'admin' ? 'Amministratore' : 'Membro'})
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-
-              <Button
-                variant="outline-primary"
-                onClick={openPrivateThread}
-                disabled={!newPrivateMemberId}
-              >
-                Apri box chat
-              </Button>
-            </Card.Body>
-          </Card>
-        </Col>
-
         {privateThreadMembers.map((member) => {
           const threadMessages = privateThreadMessagesByMemberId[member.id] || [];
           const draft = privateDraftByMemberId[member.id] || '';
