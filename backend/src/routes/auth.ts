@@ -77,6 +77,10 @@ async function buildAuthPayload(userId: string, activeFamilyId?: string) {
       // Backward-compatible fields used by existing frontend.
       familyId: activeMembership?.familyId,
       role: activeMembership?.role,
+      canManagePlanning: activeMembership?.canManagePlanning,
+      canManageShopping: activeMembership?.canManageShopping,
+      canModerateChat: activeMembership?.canModerateChat,
+      isReadOnly: activeMembership?.isReadOnly,
       activeFamilyId: activeMembership?.familyId,
       families: memberships.map((m) => ({
         id: m.family.id,
@@ -84,6 +88,10 @@ async function buildAuthPayload(userId: string, activeFamilyId?: string) {
         city: m.family.city,
         createdAt: m.family.createdAt,
         role: m.role,
+        canManagePlanning: m.canManagePlanning,
+        canManageShopping: m.canManageShopping,
+        canModerateChat: m.canModerateChat,
+        isReadOnly: m.isReadOnly,
       })),
     },
   };

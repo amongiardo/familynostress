@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { isAuthenticated, getFamilyId } from '../middleware/auth';
 import { requireFamilyAuthCode } from '../middleware/familyAuthCode';
+import { requireShoppingWrite } from '../middleware/roles';
 import {
   getOrCreateShoppingList,
   addShoppingItem,
@@ -12,6 +13,7 @@ import {
   clearPendingItems,
 } from '../services/shoppingList';
 import { parseDateOnly } from '../utils/date';
+import { logAudit } from '../services/audit';
 
 const router = Router();
 
@@ -39,7 +41,7 @@ router.get('/', isAuthenticated, async (req, res, next) => {
 });
 
 // Add item manually
-router.post('/items', isAuthenticated, async (req, res, next) => {
+router.post('/items', isAuthenticated, requireShoppingWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { week, ingredient, quantity } = req.body ?? {};
@@ -58,6 +60,14 @@ router.post('/items', isAuthenticated, async (req, res, next) => {
     }
 
     const item = await addShoppingItem(familyId, date, ingredient, quantity);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_ITEM_CREATED',
+      entityType: 'shopping_item',
+      entityId: item.id,
+      details: { week, ingredient },
+    });
 
     res.json(item);
   } catch (error) {
@@ -66,7 +76,7 @@ router.post('/items', isAuthenticated, async (req, res, next) => {
 });
 
 // Toggle item check status
-router.put('/:itemId/check', isAuthenticated, async (req, res, next) => {
+router.put('/:itemId/check', isAuthenticated, requireShoppingWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { itemId } = req.params;
@@ -86,6 +96,14 @@ router.put('/:itemId/check', isAuthenticated, async (req, res, next) => {
     }
 
     const item = await updateItemCheckStatus(familyId, date, itemId, checked);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_ITEM_CHECKED',
+      entityType: 'shopping_item',
+      entityId: itemId,
+      details: { checked },
+    });
 
     res.json(item);
   } catch (error) {
@@ -94,7 +112,7 @@ router.put('/:itemId/check', isAuthenticated, async (req, res, next) => {
 });
 
 // Remove item from list
-router.delete('/items/:itemId', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/items/:itemId', isAuthenticated, requireShoppingWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { itemId } = req.params;
@@ -110,6 +128,13 @@ router.delete('/items/:itemId', isAuthenticated, requireFamilyAuthCode, async (r
     }
 
     const result = await removeShoppingItem(familyId, date, itemId);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_ITEM_DELETED',
+      entityType: 'shopping_item',
+      entityId: itemId,
+    });
     res.json(result);
   } catch (error) {
     next(error);
@@ -117,7 +142,7 @@ router.delete('/items/:itemId', isAuthenticated, requireFamilyAuthCode, async (r
 });
 
 // Clear shopping list items for a week
-router.delete('/', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/', isAuthenticated, requireShoppingWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { week } = req.query;
@@ -132,6 +157,13 @@ router.delete('/', isAuthenticated, requireFamilyAuthCode, async (req, res, next
     }
 
     const result = await clearShoppingList(familyId, date);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_WEEK_CLEARED',
+      entityType: 'shopping_list',
+      details: { week },
+    });
     res.json(result);
   } catch (error) {
     next(error);
@@ -139,10 +171,16 @@ router.delete('/', isAuthenticated, requireFamilyAuthCode, async (req, res, next
 });
 
 // Clear all shopping lists for family
-router.delete('/all', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/all', isAuthenticated, requireShoppingWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const result = await clearAllShoppingLists(familyId);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_ALL_CLEARED',
+      entityType: 'shopping_list',
+    });
     res.json(result);
   } catch (error) {
     next(error);
@@ -150,10 +188,16 @@ router.delete('/all', isAuthenticated, requireFamilyAuthCode, async (req, res, n
 });
 
 // Clear purchased items across all lists
-router.delete('/purchased', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/purchased', isAuthenticated, requireShoppingWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const result = await clearPurchasedItems(familyId);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_PURCHASED_CLEARED',
+      entityType: 'shopping_list',
+    });
     res.json(result);
   } catch (error) {
     next(error);
@@ -161,10 +205,16 @@ router.delete('/purchased', isAuthenticated, requireFamilyAuthCode, async (req, 
 });
 
 // Clear pending (unchecked) items across all lists
-router.delete('/pending', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/pending', isAuthenticated, requireShoppingWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const result = await clearPendingItems(familyId);
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'SHOPPING_PENDING_CLEARED',
+      entityType: 'shopping_list',
+    });
     res.json(result);
   } catch (error) {
     next(error);

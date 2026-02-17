@@ -1,4 +1,22 @@
-import { Dish, Family, MealPlan, MealOut, ShoppingList, Suggestion, User, FamilyInvite, CitySearchResult, FormerFamilyMembership, FamilyFormerMember, AppNotification, ChatMessage } from '@/types';
+import {
+  Dish,
+  Family,
+  MealPlan,
+  MealOut,
+  ShoppingList,
+  Suggestion,
+  User,
+  FamilyInvite,
+  CitySearchResult,
+  FormerFamilyMembership,
+  FamilyFormerMember,
+  AppNotification,
+  ChatMessage,
+  WeeklyTemplate,
+  PantryItem,
+  AdvancedRoleMember,
+  AuditLogItem,
+} from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -226,6 +244,90 @@ export const chatApi = {
       method: 'POST',
       body: JSON.stringify({ content, recipientUserId }),
     }),
+};
+
+export const advancedApi = {
+  overview: () =>
+    fetchApi<{
+      family: {
+        rotationWindowDays: number;
+        maxWeeklyDishRepeat: number;
+        eventModeEnabled: boolean;
+        eventModeTitle?: string | null;
+        eventModeStart?: string | null;
+        eventModeEnd?: string | null;
+      };
+      counters: {
+        templates: number;
+        pantryItems: number;
+        pendingInvites: number;
+      };
+    }>('/api/advanced/overview'),
+  runReminders: () =>
+    fetchApi<{ success: boolean; created: number }>('/api/advanced/reminders/run', { method: 'POST' }),
+  updateFamilyConfig: (data: { rotationWindowDays: number; maxWeeklyDishRepeat: number }) =>
+    fetchApi<{ rotationWindowDays: number; maxWeeklyDishRepeat: number }>('/api/advanced/family-config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  updateEventMode: (data: { enabled: boolean; title?: string; start?: string; end?: string }) =>
+    fetchApi<{
+      eventModeEnabled: boolean;
+      eventModeTitle?: string | null;
+      eventModeStart?: string | null;
+      eventModeEnd?: string | null;
+    }>('/api/advanced/event-mode', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  listTemplates: () => fetchApi<WeeklyTemplate[]>('/api/advanced/templates'),
+  createTemplate: (data: { name: string; weekStart: string }) =>
+    fetchApi<WeeklyTemplate>('/api/advanced/templates', { method: 'POST', body: JSON.stringify(data) }),
+  applyTemplate: (templateId: string, data: { targetWeekStart: string; overwrite: boolean }) =>
+    fetchApi<{ success: boolean; created: number; skipped: number }>(`/api/advanced/templates/${templateId}/apply`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteTemplate: (templateId: string) =>
+    fetchApi<{ success: boolean }>(`/api/advanced/templates/${templateId}`, { method: 'DELETE' }),
+  pantryList: () => fetchApi<PantryItem[]>('/api/advanced/pantry'),
+  pantryCreate: (data: { name: string; quantity?: string; unit?: string; expiresAt?: string }) =>
+    fetchApi<PantryItem>('/api/advanced/pantry', { method: 'POST', body: JSON.stringify(data) }),
+  pantryDelete: (id: string) =>
+    fetchApi<{ success: boolean }>(`/api/advanced/pantry/${id}`, { method: 'DELETE' }),
+  pantrySuggestions: () =>
+    fetchApi<Array<{ id: string; name: string; category: string; ingredients: string[]; matchCount: number }>>(
+      '/api/advanced/pantry/suggestions'
+    ),
+  buildShoppingFromPlanning: (weekStart: string) =>
+    fetchApi<{ success: boolean; items: number }>('/api/advanced/shopping/build-from-planning', {
+      method: 'POST',
+      body: JSON.stringify({ weekStart }),
+    }),
+  weeklyCosts: (weekStart: string) =>
+    fetchApi<Array<{ weekStart: string; estimatedCost: number; meals: number }>>(
+      `/api/advanced/costs/weekly?weekStart=${encodeURIComponent(weekStart)}`
+    ),
+  updateDishCost: (dishId: string, estimatedCost: number) =>
+    fetchApi<{ success: boolean; updated: number }>(`/api/advanced/dishes/${dishId}/cost`, {
+      method: 'PUT',
+      body: JSON.stringify({ estimatedCost }),
+    }),
+  listRoles: () => fetchApi<AdvancedRoleMember[]>('/api/advanced/roles'),
+  updateRolePermissions: (
+    userId: string,
+    data: {
+      canManagePlanning: boolean;
+      canManageShopping: boolean;
+      canModerateChat: boolean;
+      isReadOnly: boolean;
+    }
+  ) =>
+    fetchApi<{ success: boolean; updated: number }>(`/api/advanced/roles/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  listAudit: (limit = 80) => fetchApi<AuditLogItem[]>(`/api/advanced/audit?limit=${limit}`),
 };
 
 // Stats

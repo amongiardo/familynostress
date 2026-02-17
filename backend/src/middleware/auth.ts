@@ -5,6 +5,7 @@ async function resolveActiveFamily(req: Request) {
   if (!req.user) return null;
   req.activeFamilyId = undefined;
   req.activeFamilyRole = undefined;
+  req.activeFamilyPermissions = undefined;
 
   const requestedFamilyId =
     typeof req.headers['x-family-id'] === 'string'
@@ -31,6 +32,10 @@ async function resolveActiveFamily(req: Request) {
         familyId: true,
         role: true,
         status: true,
+        canManagePlanning: true,
+        canManageShopping: true,
+        canModerateChat: true,
+        isReadOnly: true,
         family: {
           select: {
             deletedAt: true,
@@ -43,6 +48,12 @@ async function resolveActiveFamily(req: Request) {
       (req.session as any).activeFamilyId = membership.familyId;
       req.activeFamilyId = membership.familyId;
       req.activeFamilyRole = membership.role;
+      req.activeFamilyPermissions = {
+        canManagePlanning: membership.canManagePlanning,
+        canManageShopping: membership.canManageShopping,
+        canModerateChat: membership.canModerateChat,
+        isReadOnly: membership.isReadOnly,
+      };
       return membership;
     }
   }
@@ -53,6 +64,10 @@ async function resolveActiveFamily(req: Request) {
     select: {
       familyId: true,
       role: true,
+      canManagePlanning: true,
+      canManageShopping: true,
+      canModerateChat: true,
+      isReadOnly: true,
     },
   });
 
@@ -64,6 +79,12 @@ async function resolveActiveFamily(req: Request) {
   (req.session as any).activeFamilyId = fallback.familyId;
   req.activeFamilyId = fallback.familyId;
   req.activeFamilyRole = fallback.role;
+  req.activeFamilyPermissions = {
+    canManagePlanning: fallback.canManagePlanning,
+    canManageShopping: fallback.canManageShopping,
+    canModerateChat: fallback.canModerateChat,
+    isReadOnly: fallback.isReadOnly,
+  };
   return fallback;
 }
 

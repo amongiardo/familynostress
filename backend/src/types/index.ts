@@ -6,6 +6,12 @@ declare global {
     interface Request {
       activeFamilyId?: string;
       activeFamilyRole?: 'admin' | 'member';
+      activeFamilyPermissions?: {
+        canManagePlanning: boolean;
+        canManageShopping: boolean;
+        canModerateChat: boolean;
+        isReadOnly: boolean;
+      };
     }
   }
 }

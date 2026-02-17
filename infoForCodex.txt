@@ -180,3 +180,8 @@ Changelog
 - 2026-02-13: Chat: aggiunti nome famiglia in header/placeholder, chiusura box chat privata con pulsante dedicato e persistenza stato chiusura (riapertura da "Nuova Chat Privata" senza perdita messaggi).
 - 2026-02-13: Chat UX aggiornata: apertura chat privata diretta dal box membri, rimozione box "Nuova Chat Privata", pulsanti stato chat (apri/chiudi) e toggle riduci/ingrandisci chat famiglia con stile coerente verde/rosso.
 - 2026-02-13: Impostazioni: introdotti pulsanti Backup/Reset con modali dedicate; backup export JSON, restore selettivo per sezioni e reset selettivo (planning/chat/piatti/spesa/inviti/notifiche) con auth code.
+- 2026-02-17: Merge `feature/gestione-calendario` su `develop` e avvio branch `feature/funzionalita-avanzate`.
+- 2026-02-17: Funzionalita avanzate: introdotta pagina `/avanzate` con promemoria intelligenti, template settimanali (crea/applica/elimina), rotazione configurabile, modalita evento, dispensa con suggerimenti da scadenze, rigenerazione spesa da planning, trend costi settimanali, ruoli avanzati (permessi granulari/read-only), audit timeline.
+- 2026-02-17: Backend: nuova route `/api/advanced/*`, middleware permessi granulari, reminder automatici integrati in notifiche, audit log su azioni principali (chat/pasti/spesa/template/dispensa).
+- 2026-02-17: DB: nuova migrazione `20260217130000_advanced_features` con nuovi campi famiglia/membership/piatti e nuove tabelle `pantry_items`, `weekly_templates`, `weekly_template_items`, `audit_logs`.
+- 2026-02-17: README aggiornato con nota roadmap: punto 9 (export/sync calendario) e login Google come prossimo step.
