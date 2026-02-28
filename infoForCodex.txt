@@ -1,5 +1,5 @@
 INFO FOR CODEX
-Ultimo aggiornamento: 2026-02-13 (sera)
+Ultimo aggiornamento: 2026-02-28 (proxy Next.js auth/api)
 
 Scopo del progetto
 Family Planner è una web app per l’organizzazione familiare, con focus su pasti, calendario e lista spesa. Consente di pianificare pranzi e cene su calendario, gestire un catalogo piatti con ingredienti, generare la lista della spesa e suggerire pasti per evitare ripetizioni e mantenere un’alimentazione bilanciata. Supporta l’uso multi‑famiglia con inviti e dati isolati per nucleo.
@@ -32,7 +32,7 @@ Note operative
 - PostgreSQL: usa PG16 su porta 5432 (PG18 rimosso).
 
 Stato branch
-- Branch attuale: feature/gestione-calendario.
+- Branch attuale: feature/funzionalita-avanzate.
 - Branch principali: main (production), develop (sviluppo).
 
 Prossimo obiettivo
@@ -185,3 +185,4 @@ Changelog
 - 2026-02-17: Backend: nuova route `/api/advanced/*`, middleware permessi granulari, reminder automatici integrati in notifiche, audit log su azioni principali (chat/pasti/spesa/template/dispensa).
 - 2026-02-17: DB: nuova migrazione `20260217130000_advanced_features` con nuovi campi famiglia/membership/piatti e nuove tabelle `pantry_items`, `weekly_templates`, `weekly_template_items`, `audit_logs`.
 - 2026-02-17: README aggiornato con nota roadmap: punto 9 (export/sync calendario) e login Google come prossimo step.
+- 2026-02-28: Fix login dev cross-origin: introdotto proxy Next.js via `rewrites` per `/auth/*` e `/api/*` verso backend, frontend API allineata a same-origin di default (URL relative) e `.env.example` aggiornato con `NEXT_PUBLIC_API_URL` vuoto.

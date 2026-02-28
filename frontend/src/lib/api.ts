@@ -18,7 +18,13 @@ import {
   AuditLogItem,
 } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Default to same-origin so Next.js rewrites can proxy /auth and /api in dev.
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+
+function buildApiUrl(path: string): string {
+  if (!API_URL) return path;
+  return `${API_URL.replace(/\/+$/, '')}${path}`;
+}
 
 function authCodeHeaders(authCode?: string): Record<string, string> {
   return authCode
@@ -38,7 +44,7 @@ function activeFamilyHeaders(): Record<string, string> {
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     ...options,
     credentials: 'include',
     headers: {
@@ -74,8 +80,8 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 export const authApi = {
   getMe: () => fetchApi<{ user: User | null }>('/auth/me'),
   logout: () => fetchApi<{ success: boolean }>('/auth/logout', { method: 'POST' }),
-  getGoogleLoginUrl: () => `${API_URL}/auth/google`,
-  getGithubLoginUrl: () => `${API_URL}/auth/github`,
+  getGoogleLoginUrl: () => buildApiUrl('/auth/google'),
+  getGithubLoginUrl: () => buildApiUrl('/auth/github'),
   loginLocal: (data: { email: string; password: string }) =>
     fetchApi<{ user: User }>('/auth/local/login', {
       method: 'POST',

@@ -50,5 +50,5 @@ Quando si lavora con più sessioni Codex in parallelo:
 - Segui le regole operative in `SKILL.md` (in particolare: chiedere sempre se fare `cm` a fine fix/feature).
 - Mantieni un versioning SemVer in `VERSION` (partenza `0.0.0`) e aggiornalo quando fai un rilascio logico o quando richiesto.
 
-Ultimo aggiornamento: 2026-02-13 (impostazioni: backup/restore e reset selettivo protetti da auth code)
+Ultimo aggiornamento: 2026-02-28 (frontend dev: proxy Next.js su /auth e /api per evitare mismatch localhost/127.0.0.1)
 </INSTRUCTIONS>
