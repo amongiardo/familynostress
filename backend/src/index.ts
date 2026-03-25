@@ -17,6 +17,7 @@ import statsRoutes from './routes/stats';
 import notificationsRoutes from './routes/notifications';
 import chatRoutes from './routes/chat';
 import advancedRoutes from './routes/advanced';
+import docsRoutes from './routes/docs';
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/advanced', advancedRoutes);
+app.use('/docs', docsRoutes);
 
 app.get('/', (req, res) => {
   res.type('html').send(`<!DOCTYPE html>
