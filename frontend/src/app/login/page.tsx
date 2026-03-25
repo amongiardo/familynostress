@@ -8,6 +8,7 @@ import { authApi, familyApi } from '@/lib/api';
 import StatusModal from '@/components/StatusModal';
 
 function LoginPageContent() {
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, refresh } = useAuth();
@@ -200,6 +201,7 @@ function LoginPageContent() {
         <p className="mt-4 text-muted small">
           Accedendo, accetti i nostri termini di servizio
         </p>
+        <p className="text-muted small mb-0">Versione {appVersion}</p>
       </div>
     </div>
   );
