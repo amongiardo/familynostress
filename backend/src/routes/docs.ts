@@ -26,6 +26,19 @@ const openApiSpec = {
     { name: 'shopping', description: 'Lista della spesa' },
     { name: 'advanced', description: 'Funzioni avanzate e configurazioni' },
   ],
+  components: {
+    securitySchemes: {
+      cookieAuth: {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'connect.sid',
+      },
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+      },
+    },
+  },
   paths: {
     '/health': {
       get: {
@@ -110,10 +123,61 @@ const openApiSpec = {
         },
       },
     },
+    '/auth/token/login': {
+      post: {
+        tags: ['auth'],
+        summary: 'Login per client esterni con Bearer token',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password'],
+                properties: {
+                  email: { type: 'string', example: 'utente@example.com' },
+                  password: { type: 'string', example: 'Password123!' },
+                  tokenName: { type: 'string', example: 'ios-antonio-iphone' },
+                  expiresInDays: { type: 'integer', example: 30 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Token Bearer emesso',
+          },
+        },
+      },
+    },
+    '/auth/api-tokens': {
+      get: {
+        tags: ['auth'],
+        summary: 'Elenco token API personali',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Lista token attivi',
+          },
+        },
+      },
+      post: {
+        tags: ['auth'],
+        summary: 'Crea un nuovo token API personale',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+        responses: {
+          '201': {
+            description: 'Token creato',
+          },
+        },
+      },
+    },
     '/api/family': {
       get: {
         tags: ['family'],
         summary: 'Famiglia attiva',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Dati famiglia attiva',
@@ -128,6 +192,7 @@ const openApiSpec = {
       get: {
         tags: ['dishes'],
         summary: 'Elenco piatti',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         parameters: [
           {
             name: 'category',
@@ -156,6 +221,7 @@ const openApiSpec = {
       post: {
         tags: ['dishes'],
         summary: 'Crea un nuovo piatto',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Piatto creato',
@@ -167,6 +233,7 @@ const openApiSpec = {
       get: {
         tags: ['meals'],
         summary: 'Pasti per settimana',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         parameters: [
           {
             name: 'week',
@@ -187,6 +254,7 @@ const openApiSpec = {
       post: {
         tags: ['meals'],
         summary: 'Crea una pianificazione pasto',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         responses: {
           '200': {
             description: 'Pasto pianificato',
@@ -198,6 +266,7 @@ const openApiSpec = {
       get: {
         tags: ['shopping'],
         summary: 'Lista spesa della settimana',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         parameters: [
           {
             name: 'week',

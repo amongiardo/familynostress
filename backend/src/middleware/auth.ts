@@ -1,5 +1,48 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../prisma';
+import { hashApiTokenValue } from '../utils/apiToken';
+import { findApiTokenByHash, touchApiTokenLastUsed } from '../services/apiTokens';
+
+function getBearerToken(req: Request): string | undefined {
+  const header = req.headers.authorization;
+  if (!header) return undefined;
+
+  const [scheme, token] = header.split(' ');
+  if (scheme?.toLowerCase() !== 'bearer' || !token) return undefined;
+  return token.trim();
+}
+
+export async function authenticateRequest(req: Request): Promise<boolean> {
+  if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && req.user) {
+    req.authMethod = 'session';
+    req.apiTokenId = undefined;
+    return true;
+  }
+
+  const bearerToken = getBearerToken(req);
+  if (!bearerToken) {
+    return false;
+  }
+
+  const tokenRecord = await findApiTokenByHash(hashApiTokenValue(bearerToken));
+
+  if (!tokenRecord || tokenRecord.revokedAt || (tokenRecord.expiresAt && tokenRecord.expiresAt <= new Date())) {
+    return false;
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: tokenRecord.userId } });
+  if (!user) {
+    return false;
+  }
+
+  req.user = user;
+  req.authMethod = 'api_token';
+  req.apiTokenId = tokenRecord.id;
+
+  await touchApiTokenLastUsed(tokenRecord.id);
+
+  return true;
+}
 
 async function resolveActiveFamily(req: Request) {
   if (!req.user) return null;
@@ -15,16 +58,19 @@ async function resolveActiveFamily(req: Request) {
         : undefined;
 
   if (requestedFamilyId) {
-    (req.session as any).activeFamilyId = requestedFamilyId;
+    if (req.authMethod === 'session') {
+      req.session.activeFamilyId = requestedFamilyId;
+    }
   }
 
-  const sessionFamilyId = (req.session as any)?.activeFamilyId as string | undefined;
+  const sessionFamilyId = req.authMethod === 'session' ? req.session.activeFamilyId : undefined;
+  const targetFamilyId = requestedFamilyId || sessionFamilyId;
 
-  if (sessionFamilyId) {
+  if (targetFamilyId) {
     const membership = await prisma.familyMember.findUnique({
       where: {
         familyId_userId: {
-          familyId: sessionFamilyId,
+          familyId: targetFamilyId,
           userId: req.user.id,
         },
       },
@@ -45,7 +91,9 @@ async function resolveActiveFamily(req: Request) {
     });
 
     if (membership && membership.status === 'active' && !membership.family.deletedAt) {
-      (req.session as any).activeFamilyId = membership.familyId;
+      if (req.authMethod === 'session') {
+        req.session.activeFamilyId = membership.familyId;
+      }
       req.activeFamilyId = membership.familyId;
       req.activeFamilyRole = membership.role;
       req.activeFamilyPermissions = {
@@ -72,11 +120,15 @@ async function resolveActiveFamily(req: Request) {
   });
 
   if (!fallback) {
-    (req.session as any).activeFamilyId = undefined;
+    if (req.authMethod === 'session') {
+      req.session.activeFamilyId = undefined;
+    }
     return null;
   }
 
-  (req.session as any).activeFamilyId = fallback.familyId;
+  if (req.authMethod === 'session') {
+    req.session.activeFamilyId = fallback.familyId;
+  }
   req.activeFamilyId = fallback.familyId;
   req.activeFamilyRole = fallback.role;
   req.activeFamilyPermissions = {
@@ -89,11 +141,7 @@ async function resolveActiveFamily(req: Request) {
 }
 
 export async function isLoggedIn(req: Request, res: Response, next: NextFunction) {
-  if (typeof req.isAuthenticated !== 'function') {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  if (!req.isAuthenticated() || !req.user) {
+  if (!(await authenticateRequest(req))) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -107,10 +155,7 @@ export async function isLoggedIn(req: Request, res: Response, next: NextFunction
 
 export async function isAuthenticated(req: Request, res: Response, next: NextFunction) {
   try {
-    if (typeof req.isAuthenticated !== 'function') {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    if (!req.isAuthenticated() || !req.user) {
+    if (!(await authenticateRequest(req))) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     await resolveActiveFamily(req);

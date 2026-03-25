@@ -6,6 +6,8 @@ declare global {
     interface Request {
       activeFamilyId?: string;
       activeFamilyRole?: 'admin' | 'member';
+      authMethod?: 'session' | 'api_token';
+      apiTokenId?: string;
       activeFamilyPermissions?: {
         canManagePlanning: boolean;
         canManageShopping: boolean;

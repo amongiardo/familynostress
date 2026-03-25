@@ -189,5 +189,6 @@ declare module 'express-session' {
   interface SessionData {
     inviteToken?: string;
     activeFamilyId?: string;
+    swaggerDocsAuthorized?: boolean;
   }
 }

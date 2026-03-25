@@ -4,14 +4,43 @@ import passport from 'passport';
 import prisma from '../prisma';
 import { generateFamilyAuthCode } from '../utils/familyAuthCode';
 import { ensureUserAuthCode } from '../middleware/familyAuthCode';
+import { authenticateRequest } from '../middleware/auth';
+import { generateApiTokenValue, hashApiTokenValue } from '../utils/apiToken';
+import { createApiTokenRecord, listActiveApiTokensForUser, revokeApiTokenForUser } from '../services/apiTokens';
 
 const router = Router();
 const NO_ACTIVE_FAMILY_MESSAGE =
   'Non fai più parte di nessuna famiglia. Puoi crearne una nuova registrandoti oppure attendere un nuovo invito.';
+const DEFAULT_API_TOKEN_DAYS = 30;
+const MAX_API_TOKEN_DAYS = 365;
 
 function sanitizeUser(user: any) {
   const { passwordHash, ...safeUser } = user;
   return safeUser;
+}
+
+function normalizeApiTokenDays(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_API_TOKEN_DAYS;
+  const rounded = Math.trunc(parsed);
+  if (rounded < 1) return 1;
+  if (rounded > MAX_API_TOKEN_DAYS) return MAX_API_TOKEN_DAYS;
+  return rounded;
+}
+
+function buildApiTokenExpiry(days: number): Date {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+async function issueApiTokenForUser(userId: string, name: string, expiresInDays: number) {
+  const token = generateApiTokenValue();
+  const expiresAt = buildApiTokenExpiry(expiresInDays);
+  const record = await createApiTokenRecord(userId, name, hashApiTokenValue(token), expiresAt);
+
+  return {
+    token,
+    metadata: record,
+  };
 }
 
 async function resolveActiveFamilyId(userId: string, current?: string) {
@@ -384,39 +413,160 @@ router.post('/local/login', async (req, res, next) => {
   }
 });
 
+router.post('/token/login', async (req, res, next) => {
+  try {
+    const { email, password, tokenName, expiresInDays } = req.body ?? {};
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing email or password' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ error: 'Credenziali non valide' });
+    }
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Credenziali non valide' });
+    }
+
+    const activeFamilyId = await resolveActiveFamilyId(user.id);
+    if (!activeFamilyId) {
+      return res.status(403).json({ error: NO_ACTIVE_FAMILY_MESSAGE, code: 'NO_ACTIVE_FAMILY' });
+    }
+
+    const issuedToken = await issueApiTokenForUser(
+      user.id,
+      typeof tokenName === 'string' && tokenName.trim() ? tokenName.trim() : 'mobile-client',
+      normalizeApiTokenDays(expiresInDays)
+    );
+
+    res.json({
+      token: issuedToken.token,
+      tokenType: 'Bearer',
+      expiresAt: issuedToken.metadata.expiresAt,
+      apiToken: issuedToken.metadata,
+      ...(await buildAuthPayload(user.id, activeFamilyId)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/me', async (req, res, next) => {
   try {
-    if (!req.user) {
+    if (!(await authenticateRequest(req)) || !req.user) {
       return res.json({ user: null });
     }
 
-    const activeFamilyId = await resolveActiveFamilyId(req.user.id, req.session.activeFamilyId);
+    const requestedFamilyId =
+      typeof req.headers['x-family-id'] === 'string'
+        ? req.headers['x-family-id']
+        : Array.isArray(req.headers['x-family-id'])
+          ? req.headers['x-family-id'][0]
+          : undefined;
+    const currentFamilyId = req.authMethod === 'session' ? req.session.activeFamilyId : requestedFamilyId;
+    const activeFamilyId = await resolveActiveFamilyId(req.user.id, currentFamilyId);
     if (!activeFamilyId) {
-      req.logout(() => {});
-      req.session.destroy(() => {});
-      res.clearCookie('connect.sid');
+      if (req.authMethod === 'session') {
+        req.logout(() => {});
+        req.session.destroy(() => {});
+        res.clearCookie('connect.sid');
+      }
       return res.status(403).json({ error: NO_ACTIVE_FAMILY_MESSAGE, code: 'NO_ACTIVE_FAMILY' });
     }
-    req.session.activeFamilyId = activeFamilyId;
+    if (req.authMethod === 'session') {
+      req.session.activeFamilyId = activeFamilyId;
+    }
     res.json(await buildAuthPayload(req.user.id, activeFamilyId));
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/logout', (req, res, next) => {
-  req.logout((err) => {
-    if (err) {
-      return next(err);
+router.get('/api-tokens', async (req, res, next) => {
+  try {
+    if (!(await authenticateRequest(req)) || !req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-    req.session.destroy((destroyErr) => {
-      if (destroyErr) {
-        return next(destroyErr);
-      }
-      res.clearCookie('connect.sid');
-      res.json({ success: true });
+
+    const tokens = await listActiveApiTokensForUser(req.user.id);
+
+    res.json({ tokens });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api-tokens', async (req, res, next) => {
+  try {
+    if (!(await authenticateRequest(req)) || !req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, expiresInDays } = req.body ?? {};
+    const normalizedName =
+      typeof name === 'string' && name.trim() ? name.trim() : `manual-token-${new Date().toISOString()}`;
+    const issuedToken = await issueApiTokenForUser(
+      req.user.id,
+      normalizedName,
+      normalizeApiTokenDays(expiresInDays)
+    );
+
+    res.status(201).json({
+      token: issuedToken.token,
+      tokenType: 'Bearer',
+      expiresAt: issuedToken.metadata.expiresAt,
+      apiToken: issuedToken.metadata,
     });
-  });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/api-tokens/:id', async (req, res, next) => {
+  try {
+    if (!(await authenticateRequest(req)) || !req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const revokedCount = await revokeApiTokenForUser(req.params.id, req.user.id);
+
+    if (!revokedCount) {
+      return res.status(404).json({ error: 'Token not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/logout', async (req, res, next) => {
+  try {
+    if (await authenticateRequest(req)) {
+      if (req.authMethod === 'api_token' && req.apiTokenId) {
+        await revokeApiTokenForUser(req.apiTokenId, req.user?.id || '');
+        return res.json({ success: true });
+      }
+    }
+
+    req.logout((err) => {
+      if (err) {
+        return next(err);
+      }
+      req.session.destroy((destroyErr) => {
+        if (destroyErr) {
+          return next(destroyErr);
+        }
+        res.clearCookie('connect.sid');
+        res.json({ success: true });
+      });
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;
