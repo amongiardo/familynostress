@@ -91,6 +91,12 @@ export default function ImpostazioniPage() {
     enabled: hasActiveFamily,
   });
 
+  useEffect(() => {
+    if (family && !familyName) {
+      setFamilyName(family.name);
+    }
+  }, [family, familyName]);
+
   const { data: invites, isLoading: invitesLoading } = useQuery({
     queryKey: ['invites'],
     queryFn: familyApi.getInvites,

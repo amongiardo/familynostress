@@ -16,6 +16,8 @@ declare global {
   }
 }
 
+export {};
+
 export interface ShoppingListItem {
   id: string;
   ingredient: string;
