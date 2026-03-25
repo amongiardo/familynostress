@@ -329,7 +329,7 @@ function renderDocsUnlockPage(errorMessage?: string) {
 </html>`;
 }
 
-function docsGuard(req: Request, res: Response, next: NextFunction) {
+function docsAccessGuard(req: Request, res: Response, next: NextFunction) {
   const queryCode = typeof req.query.code === 'string' ? req.query.code : undefined;
   const headerCode = typeof req.headers['x-docs-code'] === 'string' ? req.headers['x-docs-code'] : undefined;
   const sessionCodeValidated = (req.session as any)?.swaggerDocsAuthorized === true;
@@ -357,14 +357,13 @@ function docsUnlockedGuard(req: Request, res: Response, next: NextFunction) {
   return res.status(403).type('html').send(renderDocsUnlockPage());
 }
 
-router.use('/', docsGuard, swaggerUi.serve);
 router.get('/', (req, res, next) => {
   if ((req.session as any)?.swaggerDocsAuthorized === true) {
     return next();
   }
 
   if (hasValidDocsCode(req.query.code) || hasValidDocsCode(req.headers['x-docs-code'])) {
-    return docsGuard(req, res, next);
+    return docsAccessGuard(req, res, next);
   }
 
   return res.type('html').send(renderDocsUnlockPage());
@@ -383,5 +382,7 @@ router.post('/unlock', formParser, (req, res) => {
 router.get('/openapi.json', docsUnlockedGuard, (req, res) => {
   res.json(openApiSpec);
 });
+
+router.use('/', docsUnlockedGuard, swaggerUi.serve);
 
 export default router;
