@@ -11,6 +11,12 @@ model Family {
   id              String   @id @default(uuid())
   name            String
   city            String   @default("Roma")
+  rotationWindowDays Int   @default(7) @map("rotation_window_days")
+  maxWeeklyDishRepeat Int  @default(2) @map("max_weekly_dish_repeat")
+  eventModeEnabled Boolean @default(false) @map("event_mode_enabled")
+  eventModeTitle   String? @map("event_mode_title")
+  eventModeStart   DateTime? @db.Date @map("event_mode_start")
+  eventModeEnd     DateTime? @db.Date @map("event_mode_end")
   cityDisplayName String?  @map("city_display_name")
   cityCountry     String?  @map("city_country")
   cityTimezone    String?  @map("city_timezone")
@@ -30,6 +36,9 @@ model Family {
   invites       FamilyInvite[]
   notifications Notification[]
   chatMessages  ChatMessage[]
+  pantryItems   PantryItem[]
+  weeklyTemplates WeeklyTemplate[]
+  auditLogs     AuditLog[]
   createdByUser User?      @relation("family_created_by", fields: [createdByUserId], references: [id], onDelete: SetNull)
   deletedByUser User?      @relation("family_deleted_by", fields: [deletedByUserId], references: [id], onDelete: SetNull)
 
@@ -64,6 +73,9 @@ model User {
   notifications Notification[]
   chatMessagesSent ChatMessage[] @relation("chat_message_sender")
   chatMessagesReceived ChatMessage[] @relation("chat_message_recipient")
+  pantryItems PantryItem[] @relation("pantry_item_created_by")
+  weeklyTemplates WeeklyTemplate[] @relation("weekly_template_created_by")
+  auditLogs AuditLog[] @relation("audit_log_actor")
 
   @@unique([oauthProvider, oauthId])
   @@map("users")
@@ -75,6 +87,10 @@ model FamilyMember {
   userId    String     @map("user_id")
   role      FamilyRole @default(member)
   status    MembershipStatus @default(active)
+  canManagePlanning Boolean @default(true) @map("can_manage_planning")
+  canManageShopping Boolean @default(true) @map("can_manage_shopping")
+  canModerateChat Boolean @default(true) @map("can_moderate_chat")
+  isReadOnly Boolean @default(false) @map("is_read_only")
   leftAt    DateTime?  @map("left_at")
   removedAt DateTime?  @map("removed_at")
   createdAt DateTime   @default(now()) @map("created_at")
@@ -99,10 +115,12 @@ model Dish {
   name        String
   category    DishCategory
   ingredients String[]     @default([])
+  estimatedCost Float?     @map("estimated_cost")
   createdAt   DateTime     @default(now()) @map("created_at")
 
   family    Family     @relation(fields: [familyId], references: [id])
   mealPlans MealPlan[]
+  weeklyTemplateItems WeeklyTemplateItem[]
 
   @@map("dishes")
 }
@@ -205,6 +223,72 @@ model ChatMessage {
   @@index([senderUserId])
   @@index([recipientUserId])
   @@map("chat_messages")
+}
+
+model PantryItem {
+  id              String   @id @default(uuid())
+  familyId        String   @map("family_id")
+  createdByUserId String?  @map("created_by_user_id")
+  name            String
+  quantity        String?
+  unit            String?
+  expiresAt       DateTime? @db.Date @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("pantry_item_created_by", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([familyId, expiresAt])
+  @@map("pantry_items")
+}
+
+model WeeklyTemplate {
+  id              String   @id @default(uuid())
+  familyId        String   @map("family_id")
+  createdByUserId String?  @map("created_by_user_id")
+  name            String
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("weekly_template_created_by", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items WeeklyTemplateItem[]
+
+  @@index([familyId, createdAt])
+  @@map("weekly_templates")
+}
+
+model WeeklyTemplateItem {
+  id            String   @id @default(uuid())
+  templateId    String   @map("template_id")
+  dayOffset     Int      @map("day_offset")
+  mealType      MealType @map("meal_type")
+  slotCategory  DishCategory @map("slot_category")
+  dishId        String   @map("dish_id")
+
+  template WeeklyTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, dayOffset, mealType, slotCategory])
+  @@index([dishId])
+  @@map("weekly_template_items")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  familyId  String   @map("family_id")
+  userId    String?  @map("user_id")
+  action    String
+  entityType String  @map("entity_type")
+  entityId  String?  @map("entity_id")
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user User? @relation("audit_log_actor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([familyId, createdAt])
+  @@map("audit_logs")
 }
 
 model Session {

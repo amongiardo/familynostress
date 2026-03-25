@@ -5,6 +5,8 @@ import prisma from '../prisma';
 import { isAuthenticated, getFamilyId } from '../middleware/auth';
 import { requireFamilyAuthCode } from '../middleware/familyAuthCode';
 import { parseDateOnly } from '../utils/date';
+import { requirePlanningWrite } from '../middleware/roles';
+import { logAudit } from '../services/audit';
 
 const router = Router();
 
@@ -116,7 +118,7 @@ router.get('/date/:date', isAuthenticated, async (req, res, next) => {
 });
 
 // Create meal plan
-router.post('/', isAuthenticated, async (req, res, next) => {
+router.post('/', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { date: dateStr, mealType, slotCategory, dishId, isSuggestion } = req.body;
@@ -185,6 +187,15 @@ router.post('/', isAuthenticated, async (req, res, next) => {
       },
     });
 
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_CREATED',
+      entityType: 'meal_plan',
+      entityId: meal.id,
+      details: { date: dateStr, mealType, slotCategory, dishId },
+    });
+
     res.status(201).json(meal);
   } catch (error) {
     next(error);
@@ -192,7 +203,7 @@ router.post('/', isAuthenticated, async (req, res, next) => {
 });
 
 // Update meal plan
-router.put('/:id', isAuthenticated, async (req, res, next) => {
+router.put('/:id', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { id } = req.params;
@@ -281,6 +292,15 @@ router.put('/:id', isAuthenticated, async (req, res, next) => {
       },
     });
 
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_UPDATED',
+      entityType: 'meal_plan',
+      entityId: meal.id,
+      details: updateData,
+    });
+
     res.json(meal);
   } catch (error) {
     next(error);
@@ -288,7 +308,7 @@ router.put('/:id', isAuthenticated, async (req, res, next) => {
 });
 
 // Auto schedule meals for a date range (only empty slots)
-router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
+router.post('/auto-schedule', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { rangeType, slots } = req.body as {
@@ -355,6 +375,15 @@ router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
 
     start = normalizeDateOnly(start);
     end = normalizeDateOnly(end);
+    const familySettings = await prisma.family.findUnique({
+      where: { id: familyId },
+      select: {
+        rotationWindowDays: true,
+        maxWeeklyDishRepeat: true,
+      },
+    });
+    const rotationWindowDays = Math.max(1, familySettings?.rotationWindowDays || 7);
+    const maxWeeklyDishRepeat = Math.max(1, familySettings?.maxWeeklyDishRepeat || 2);
 
     const dishes = await prisma.dish.findMany({ where: { familyId } });
     if (dishes.length === 0) {
@@ -385,7 +414,7 @@ router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
       )
     );
 
-    const lookbackStart = subDays(start, 6);
+    const lookbackStart = subDays(start, rotationWindowDays - 1);
     const history = await prisma.mealPlan.findMany({
       where: {
         familyId,
@@ -396,10 +425,14 @@ router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
 
     const lastUsed = new Map<string, Date>();
     const usedByDate = new Map<string, Set<string>>();
+    const weeklyDishUsage = new Map<string, number>();
     history.forEach((meal) => {
       const dateKey = format(new Date(meal.date), 'yyyy-MM-dd');
       if (!usedByDate.has(dateKey)) usedByDate.set(dateKey, new Set());
       usedByDate.get(dateKey)!.add(meal.dishId);
+      const weekKey = format(startOfWeek(new Date(meal.date), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      const usageKey = `${weekKey}|${meal.dishId}`;
+      weeklyDishUsage.set(usageKey, (weeklyDishUsage.get(usageKey) || 0) + 1);
       const prev = lastUsed.get(meal.dishId);
       const currentDate = new Date(meal.date);
       if (!prev || currentDate > prev) {
@@ -456,7 +489,10 @@ router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
             const candidate = list[(idx + i) % list.length];
             if (dayUsed.has(candidate.id)) continue;
             const lastDate = lastUsed.get(candidate.id);
-            if (lastDate && differenceInCalendarDays(d, lastDate) < 7) continue;
+            if (lastDate && differenceInCalendarDays(d, lastDate) < rotationWindowDays) continue;
+            const weekKey = format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            const usageKey = `${weekKey}|${candidate.id}`;
+            if ((weeklyDishUsage.get(usageKey) || 0) >= maxWeeklyDishRepeat) continue;
             chosen = candidate;
             idx = idx + i + 1;
             break;
@@ -471,6 +507,9 @@ router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
           indexByKey.set(cycleKey, idx);
           dayUsed.add(chosen.id);
           lastUsed.set(chosen.id, d);
+          const weekKey = format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+          const usageKey = `${weekKey}|${chosen.id}`;
+          weeklyDishUsage.set(usageKey, (weeklyDishUsage.get(usageKey) || 0) + 1);
           planned.push({
             date: parseDateOnly(dateKey)!,
             mealType,
@@ -500,6 +539,13 @@ router.post('/auto-schedule', isAuthenticated, async (req, res, next) => {
         )
       );
       return createdMeals.length;
+    });
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_AUTO_SCHEDULE',
+      entityType: 'meal_plan',
+      details: { rangeType, created, rotationWindowDays, maxWeeklyDishRepeat },
     });
 
     res.json({ success: true, created, missing: 0, neededByCategory });
@@ -539,7 +585,7 @@ router.get('/outs', isAuthenticated, async (req, res, next) => {
 });
 
 // Set meal out for a date/mealType (clears existing dishes)
-router.post('/outs', isAuthenticated, async (req, res, next) => {
+router.post('/outs', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { date: dateStr, mealType } = req.body as { date?: string; mealType?: string };
@@ -577,6 +623,14 @@ router.post('/outs', isAuthenticated, async (req, res, next) => {
         },
       });
     });
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_OUT_SET',
+      entityType: 'meal_out',
+      entityId: out.id,
+      details: { date: dateStr, mealType },
+    });
 
     res.json(out);
   } catch (error) {
@@ -585,7 +639,7 @@ router.post('/outs', isAuthenticated, async (req, res, next) => {
 });
 
 // Remove meal out for a date/mealType
-router.delete('/outs', isAuthenticated, async (req, res, next) => {
+router.delete('/outs', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { date: dateStr, mealType } = req.body as { date?: string; mealType?: string };
@@ -605,6 +659,13 @@ router.delete('/outs', isAuthenticated, async (req, res, next) => {
     await prisma.mealOut.deleteMany({
       where: { familyId, date, mealType: mealType as MealType },
     });
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_OUT_REMOVED',
+      entityType: 'meal_out',
+      details: { date: dateStr, mealType },
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -613,7 +674,7 @@ router.delete('/outs', isAuthenticated, async (req, res, next) => {
 });
 
 // Delete meal plan
-router.delete('/:id', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/:id', isAuthenticated, requirePlanningWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { id } = req.params;
@@ -630,6 +691,13 @@ router.delete('/:id', isAuthenticated, requireFamilyAuthCode, async (req, res, n
     await prisma.mealPlan.delete({
       where: { id },
     });
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_DELETED',
+      entityType: 'meal_plan',
+      entityId: id,
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -638,11 +706,18 @@ router.delete('/:id', isAuthenticated, requireFamilyAuthCode, async (req, res, n
 });
 
 // Clear all meal plans for family
-router.delete('/', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.delete('/', isAuthenticated, requirePlanningWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const result = await prisma.mealPlan.deleteMany({
       where: { familyId },
+    });
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_CLEAR_ALL',
+      entityType: 'meal_plan',
+      details: { deleted: result.count },
     });
     res.json({ success: true, deleted: result.count });
   } catch (error) {
@@ -651,7 +726,7 @@ router.delete('/', isAuthenticated, requireFamilyAuthCode, async (req, res, next
 });
 
 // Clear meal plans for a date range (rangeType like auto-schedule)
-router.post('/clear-range', isAuthenticated, requireFamilyAuthCode, async (req, res, next) => {
+router.post('/clear-range', isAuthenticated, requirePlanningWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { rangeType } = req.body as { rangeType?: string };
@@ -721,6 +796,13 @@ router.post('/clear-range', isAuthenticated, requireFamilyAuthCode, async (req, 
         familyId,
         date: { gte: start, lte: end },
       },
+    });
+    await logAudit({
+      familyId,
+      userId: req.user!.id,
+      action: 'MEAL_CLEAR_RANGE',
+      entityType: 'meal_plan',
+      details: { rangeType, deleted: result.count },
     });
 
     res.json({ success: true, deleted: result.count });

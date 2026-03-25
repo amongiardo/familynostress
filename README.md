@@ -229,3 +229,8 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ## License
 
 MIT
+
+## Note Roadmap (prossimi step)
+
+- Punto 9 (non implementato in questo rilascio): export/sync calendario verso Google Calendar / Apple Calendar.
+- Login Google: previsto prossimo step di onboarding, con riattivazione e hardening del flusso OAuth Google in UI.

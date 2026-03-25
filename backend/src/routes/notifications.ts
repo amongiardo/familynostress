@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import prisma from '../prisma';
 import { isLoggedIn } from '../middleware/auth';
+import { generateSmartReminders } from '../services/reminders';
 
 const router = Router();
 
 router.get('/', isLoggedIn, async (req, res, next) => {
   try {
     const userId = req.user!.id;
+    if (req.activeFamilyId && req.activeFamilyRole) {
+      await generateSmartReminders(userId, req.activeFamilyId, req.activeFamilyRole);
+    }
     const limitRaw = Number(req.query.limit);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
 

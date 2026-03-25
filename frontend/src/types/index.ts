@@ -6,6 +6,10 @@ export interface User {
   authCode?: string;
   oauthProvider: 'google' | 'github' | 'local';
   role?: 'admin' | 'member';
+  canManagePlanning?: boolean;
+  canManageShopping?: boolean;
+  canModerateChat?: boolean;
+  isReadOnly?: boolean;
   familyId?: string;
   activeFamilyId?: string;
   families?: UserFamilyMembership[];
@@ -17,6 +21,10 @@ export interface UserFamilyMembership {
   name: string;
   city?: string;
   role: 'admin' | 'member';
+  canManagePlanning?: boolean;
+  canManageShopping?: boolean;
+  canModerateChat?: boolean;
+  isReadOnly?: boolean;
   createdAt: string;
 }
 
@@ -43,6 +51,12 @@ export interface Family {
   id: string;
   name: string;
   city?: string;
+  rotationWindowDays?: number;
+  maxWeeklyDishRepeat?: number;
+  eventModeEnabled?: boolean;
+  eventModeTitle?: string;
+  eventModeStart?: string | null;
+  eventModeEnd?: string | null;
   cityDisplayName?: string;
   cityCountry?: string;
   cityTimezone?: string;
@@ -69,6 +83,10 @@ export interface FamilyMember {
   email: string;
   avatarUrl?: string;
   role: 'admin' | 'member';
+  canManagePlanning?: boolean;
+  canManageShopping?: boolean;
+  canModerateChat?: boolean;
+  isReadOnly?: boolean;
 }
 
 export interface FamilyFormerMember {
@@ -125,7 +143,75 @@ export interface Dish {
   name: string;
   category: DishCategory;
   ingredients: string[];
+  estimatedCost?: number | null;
   createdAt: string;
+}
+
+export interface PantryItem {
+  id: string;
+  familyId: string;
+  createdByUserId?: string | null;
+  name: string;
+  quantity?: string | null;
+  unit?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklyTemplateItem {
+  id: string;
+  templateId: string;
+  dayOffset: number;
+  mealType: 'pranzo' | 'cena';
+  slotCategory: DishCategory;
+  dishId: string;
+  dish?: {
+    id: string;
+    name: string;
+    category: DishCategory;
+  };
+}
+
+export interface WeeklyTemplate {
+  id: string;
+  familyId: string;
+  name: string;
+  createdByUserId?: string | null;
+  createdAt: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  items: WeeklyTemplateItem[];
+}
+
+export interface AdvancedRoleMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'member';
+  canManagePlanning: boolean;
+  canManageShopping: boolean;
+  canModerateChat: boolean;
+  isReadOnly: boolean;
+}
+
+export interface AuditLogItem {
+  id: string;
+  familyId: string;
+  userId?: string | null;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  details?: unknown;
+  createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 }
 
 export type MealType = 'pranzo' | 'cena';

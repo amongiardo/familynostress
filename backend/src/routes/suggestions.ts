@@ -4,6 +4,7 @@ import prisma from '../prisma';
 import { isAuthenticated, getFamilyId } from '../middleware/auth';
 import { getSuggestions } from '../services/suggestions';
 import { parseDateOnly } from '../utils/date';
+import { requirePlanningWrite } from '../middleware/roles';
 
 const router = Router();
 
@@ -44,7 +45,7 @@ router.get('/', isAuthenticated, async (req, res, next) => {
 });
 
 // Accept a suggestion (create meal plan from suggestion)
-router.post('/accept', isAuthenticated, async (req, res, next) => {
+router.post('/accept', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { date: dateStr, mealType, slotCategory, dishId } = req.body;

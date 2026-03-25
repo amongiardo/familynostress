@@ -73,3 +73,30 @@ Questo file traccia in modo sintetico le modifiche schema/database applicate tra
   - `prisma generate`
   - build backend
   - avvio stack dev
+
+## 2026-02-17
+
+### `20260217130000_advanced_features`
+- Tabella: `families`
+  - aggiunti campi per rotazione/event mode:
+    - `rotation_window_days`
+    - `max_weekly_dish_repeat`
+    - `event_mode_enabled`
+    - `event_mode_title`
+    - `event_mode_start`
+    - `event_mode_end`
+- Tabella: `family_members`
+  - aggiunti permessi avanzati per membro:
+    - `can_manage_planning`
+    - `can_manage_shopping`
+    - `can_moderate_chat`
+    - `is_read_only`
+- Tabella: `dishes`
+  - aggiunto `estimated_cost` per costo stimato piatto.
+- Nuove tabelle:
+  - `pantry_items` (dispensa con scadenze)
+  - `weekly_templates` (template settimanali)
+  - `weekly_template_items` (slot template)
+  - `audit_logs` (timeline azioni famiglia)
+- Effetto:
+  - supporto funzionalità avanzate: promemoria intelligenti, template, rotazione configurabile, dispensa/scadenze, ruoli granulari, audit timeline, costi settimanali, modalità evento.

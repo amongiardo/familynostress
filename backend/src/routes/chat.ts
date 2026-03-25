@@ -2,6 +2,8 @@ import { Router } from 'express';
 import prisma from '../prisma';
 import { isAuthenticated, getFamilyId } from '../middleware/auth';
 import { createNotifications } from '../services/notifications';
+import { requireChatWrite } from '../middleware/roles';
+import { logAudit } from '../services/audit';
 
 const router = Router();
 
@@ -68,7 +70,7 @@ router.get('/messages', isAuthenticated, async (req, res, next) => {
   }
 });
 
-router.post('/messages', isAuthenticated, async (req, res, next) => {
+router.post('/messages', isAuthenticated, requireChatWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const sender = req.user!;
@@ -158,6 +160,15 @@ router.post('/messages', isAuthenticated, async (req, res, next) => {
         },
       }))
     );
+
+    await logAudit({
+      familyId,
+      userId: sender.id,
+      action: recipientUserId ? 'PRIVATE_CHAT_MESSAGE_SENT' : 'FAMILY_CHAT_MESSAGE_SENT',
+      entityType: 'chat_message',
+      entityId: message.id,
+      details: { recipientUserId: recipientUserId || null },
+    });
 
     res.status(201).json(message);
   } catch (error) {
