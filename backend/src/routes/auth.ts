@@ -456,7 +456,12 @@ router.post('/token/login', async (req, res, next) => {
 
 router.get('/me', async (req, res, next) => {
   try {
+    const hasAuthorizationHeader =
+      typeof req.headers.authorization === 'string' && req.headers.authorization.trim().length > 0;
     if (!(await authenticateRequest(req)) || !req.user) {
+      if (hasAuthorizationHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       return res.json({ user: null });
     }
 
