@@ -741,7 +741,7 @@ export default function ImpostazioniPage() {
                 <div className="fw-bold">Token API per app esterne</div>
               </div>
               <div className="text-muted small mb-3">
-                Per browser e web app continui a usare la sessione con cookie. Questi token servono solo per client iOS o integrazioni esterne.
+                Se un utente fa login via API con le stesse credenziali usate sul web, vedrà e modificherà gli stessi dati anche da iOS. Questi token manuali servono invece per sviluppo, test, Postman, script o integrazioni tecniche quando non vuoi passare dal login completo.
               </div>
 
               <Form onSubmit={handleCreateApiToken}>
