@@ -17,6 +17,8 @@ import {
   PantryItem,
   AdvancedRoleMember,
   AuditLogItem,
+  ApiAccessToken,
+  CreatedApiAccessToken,
 } from '@/types';
 
 // Default to same-origin so Next.js rewrites can proxy /auth and /api in dev.
@@ -98,6 +100,16 @@ export const authApi = {
     fetchApi<{ user: User }>('/auth/local/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  listApiTokens: () => fetchApi<{ tokens: ApiAccessToken[] }>('/auth/api-tokens'),
+  createApiToken: (data: { name: string; expiresInDays: number }) =>
+    fetchApi<CreatedApiAccessToken>('/auth/api-tokens', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  revokeApiToken: (id: string) =>
+    fetchApi<{ success: boolean }>(`/auth/api-tokens/${id}`, {
+      method: 'DELETE',
     }),
 };
 

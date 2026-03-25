@@ -277,3 +277,18 @@ export interface FamilyInvite {
   token?: string;
   inviteUrl?: string;
 }
+
+export interface ApiAccessToken {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface CreatedApiAccessToken {
+  token: string;
+  tokenType: 'Bearer';
+  expiresAt: string;
+  apiToken: ApiAccessToken;
+}

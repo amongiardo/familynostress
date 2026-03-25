@@ -18,13 +18,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { FaEnvelope, FaTrash, FaCopy, FaCheck, FaPaste } from 'react-icons/fa';
+import { FaEnvelope, FaTrash, FaCopy, FaCheck, FaPaste, FaKey } from 'react-icons/fa';
 import DashboardLayout from '@/components/DashboardLayout';
-import { familyApi, weatherApi } from '@/lib/api';
+import { authApi, familyApi, weatherApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import StatusModal from '@/components/StatusModal';
 import ConfirmModal from '@/components/ConfirmModal';
-import type { CitySearchResult, Family } from '@/types';
+import type { ApiAccessToken, CitySearchResult, CreatedApiAccessToken, Family } from '@/types';
 
 export default function ImpostazioniPage() {
   const queryClient = useQueryClient();
@@ -44,12 +44,17 @@ export default function ImpostazioniPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const [copiedAuthCode, setCopiedAuthCode] = useState(false);
+  const [copiedApiToken, setCopiedApiToken] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [apiTokenName, setApiTokenName] = useState('');
+  const [apiTokenDays, setApiTokenDays] = useState('30');
+  const [newApiToken, setNewApiToken] = useState<CreatedApiAccessToken | null>(null);
   const [pendingInviteDelete, setPendingInviteDelete] = useState<string | null>(null);
   const [pendingFamilyDelete, setPendingFamilyDelete] = useState<{ id: string; name: string; isActive: boolean } | null>(null);
   const [pendingLeaveFamily, setPendingLeaveFamily] = useState<{ id: string; name: string; isActive: boolean } | null>(null);
   const [pendingForgetFamily, setPendingForgetFamily] = useState<{ id: string; name: string } | null>(null);
+  const [pendingApiTokenDelete, setPendingApiTokenDelete] = useState<ApiAccessToken | null>(null);
   const [targetFamilyId, setTargetFamilyId] = useState<string>('');
   const [leaveTargetFamilyId, setLeaveTargetFamilyId] = useState<string>('');
   const [deleteFamilyAuthCode, setDeleteFamilyAuthCode] = useState('');
@@ -112,6 +117,12 @@ export default function ImpostazioniPage() {
   const { data: myFamilies, isLoading: familiesLoading } = useQuery({
     queryKey: ['family', 'mine'],
     queryFn: familyApi.mine,
+  });
+
+  const { data: apiTokens, isLoading: apiTokensLoading } = useQuery({
+    queryKey: ['auth', 'api-tokens'],
+    queryFn: async () => (await authApi.listApiTokens()).tokens,
+    enabled: Boolean(user),
   });
 
   useEffect(() => {
@@ -375,6 +386,30 @@ export default function ImpostazioniPage() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const createApiTokenMutation = useMutation({
+    mutationFn: authApi.createApiToken,
+    onSuccess: async (data) => {
+      setNewApiToken(data);
+      setApiTokenName('');
+      setApiTokenDays('30');
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'api-tokens'] });
+      setSuccess('Token API creato. Copialo ora: non sarà più visibile in chiaro.');
+      setTimeout(() => setSuccess(''), 4000);
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const revokeApiTokenMutation = useMutation({
+    mutationFn: authApi.revokeApiToken,
+    onSuccess: async () => {
+      setPendingApiTokenDelete(null);
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'api-tokens'] });
+      setSuccess('Token API revocato');
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
   const handleUpdateFamilyName = () => {
     setError('');
     if (!isAdmin) {
@@ -443,6 +478,38 @@ export default function ImpostazioniPage() {
       setTimeout(() => setCopiedAuthCode(false), 2000);
     } catch (err) {
       console.error('Failed to copy auth code:', err);
+    }
+  };
+
+  const handleCreateApiToken = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    const normalizedName = apiTokenName.trim();
+    if (!normalizedName) {
+      setError('Inserisci un nome per il token API');
+      return;
+    }
+
+    const expiresInDays = Number(apiTokenDays);
+    if (!Number.isFinite(expiresInDays) || expiresInDays < 1 || expiresInDays > 365) {
+      setError('La durata deve essere compresa tra 1 e 365 giorni');
+      return;
+    }
+
+    createApiTokenMutation.mutate({
+      name: normalizedName,
+      expiresInDays: Math.trunc(expiresInDays),
+    });
+  };
+
+  const handleCopyNewApiToken = async () => {
+    if (!newApiToken?.token) return;
+    try {
+      await navigator.clipboard.writeText(newApiToken.token);
+      setCopiedApiToken(true);
+      setTimeout(() => setCopiedApiToken(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy api token:', err);
     }
   };
 
@@ -665,6 +732,67 @@ export default function ImpostazioniPage() {
                 </>
               ) : (
                 <div className="text-muted">Codice di autenticazione visibile solo agli admin.</div>
+              )}
+
+              <hr className="my-4" />
+
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <FaKey className="text-success" />
+                <div className="fw-bold">Token API per app esterne</div>
+              </div>
+              <div className="text-muted small mb-3">
+                Per browser e web app continui a usare la sessione con cookie. Questi token servono solo per client iOS o integrazioni esterne.
+              </div>
+
+              <Form onSubmit={handleCreateApiToken}>
+                <Row className="g-2">
+                  <Col md={7}>
+                    <Form.Control
+                      type="text"
+                      value={apiTokenName}
+                      onChange={(e) => setApiTokenName(e.target.value)}
+                      className="placeholder-soft"
+                      placeholder="es: ios-antonio-iphone"
+                    />
+                  </Col>
+                  <Col md={3}>
+                    <Form.Control
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={apiTokenDays}
+                      onChange={(e) => setApiTokenDays(e.target.value)}
+                    />
+                  </Col>
+                  <Col md={2} className="d-grid">
+                    <Button type="submit" variant="primary" disabled={createApiTokenMutation.isPending}>
+                      {createApiTokenMutation.isPending ? <Spinner size="sm" animation="border" /> : 'Crea'}
+                    </Button>
+                  </Col>
+                </Row>
+                <Form.Text className="text-muted">
+                  Inserisci un nome riconoscibile e una durata in giorni. Il token in chiaro viene mostrato una sola volta.
+                </Form.Text>
+              </Form>
+
+              {newApiToken && (
+                <div className="api-token-reveal mt-3">
+                  <div className="fw-bold small mb-2">Nuovo token creato</div>
+                  <InputGroup>
+                    <Form.Control type="text" value={newApiToken.token} readOnly className="api-token-plain" />
+                    <Button
+                      variant="outline-primary"
+                      className="btn-primary-soft"
+                      onClick={handleCopyNewApiToken}
+                      title="Copia token"
+                    >
+                      {copiedApiToken ? <FaCheck /> : <FaCopy />}
+                    </Button>
+                  </InputGroup>
+                  <div className="small text-muted mt-2">
+                    Scade il {format(parseISO(newApiToken.expiresAt), 'd MMM yyyy', { locale: it })}. Dopo la chiusura di questa schermata non sarà più recuperabile.
+                  </div>
+                </div>
               )}
             </Card.Body>
           </Card>
@@ -893,6 +1021,51 @@ export default function ImpostazioniPage() {
         </Col>
 
         <Col lg={6}>
+          <Card className="mb-4 settings-card">
+            <Card.Header>Token API Attivi</Card.Header>
+            {apiTokensLoading ? (
+              <Card.Body className="text-center">
+                <Spinner size="sm" animation="border" variant="success" />
+              </Card.Body>
+            ) : apiTokens && apiTokens.length > 0 ? (
+              <ListGroup variant="flush" className="settings-list">
+                {apiTokens.map((token) => (
+                  <ListGroup.Item key={token.id}>
+                    <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                      <div>
+                        <div className="fw-medium">{token.name}</div>
+                        <div className="small text-muted">
+                          Creato il {format(parseISO(token.createdAt), 'd MMM yyyy', { locale: it })}
+                          {token.lastUsedAt
+                            ? ` • Ultimo uso ${format(parseISO(token.lastUsedAt), 'd MMM yyyy HH:mm', { locale: it })}`
+                            : ' • Mai usato'}
+                        </div>
+                        {token.expiresAt && (
+                          <div className="small text-muted">
+                            Scade il {format(parseISO(token.expiresAt), 'd MMM yyyy', { locale: it })}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        className="btn-danger-soft"
+                        onClick={() => setPendingApiTokenDelete(token)}
+                        disabled={revokeApiTokenMutation.isPending}
+                      >
+                        Revoca
+                      </Button>
+                    </div>
+                  </ListGroup.Item>
+                ))}
+              </ListGroup>
+            ) : (
+              <Card.Body className="text-muted">
+                Nessun token API attivo. Creane uno dal profilo utente per collegare un’app iOS o un client esterno.
+              </Card.Body>
+            )}
+          </Card>
+
           <Card className="mb-4 settings-card">
             <Card.Header>Membri della Famiglia</Card.Header>
             {family?.users?.length ? (
@@ -1540,6 +1713,22 @@ export default function ImpostazioniPage() {
             forgetFamilyMutation.mutate(pendingForgetFamily.id);
           }
           setPendingForgetFamily(null);
+        }}
+      />
+
+      <ConfirmModal
+        show={Boolean(pendingApiTokenDelete)}
+        message={
+          pendingApiTokenDelete
+            ? `Revocare il token API "${pendingApiTokenDelete.name}"? Smetterà subito di funzionare su tutte le app che lo usano.`
+            : ''
+        }
+        onCancel={() => setPendingApiTokenDelete(null)}
+        confirmLabel="Revoca"
+        onConfirm={() => {
+          if (pendingApiTokenDelete) {
+            revokeApiTokenMutation.mutate(pendingApiTokenDelete.id);
+          }
         }}
       />
 

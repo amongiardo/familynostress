@@ -1216,6 +1216,18 @@ body::after {
   overflow: hidden;
 }
 
+.api-token-reveal {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(34, 120, 87, 0.08);
+  border: 1px solid rgba(34, 120, 87, 0.16);
+}
+
+.api-token-plain {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.92rem;
+}
+
 .app-modal .modal-header,
 .app-modal .modal-footer {
   border: none;
