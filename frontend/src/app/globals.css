@@ -1241,9 +1241,7 @@ body::after {
 .changelog-page {
   min-height: 100vh;
   padding: 32px 20px 48px;
-  background:
-    radial-gradient(circle at top, rgba(44, 122, 81, 0.12), transparent 26%),
-    linear-gradient(180deg, #f4efe6, #ebe1d4);
+  background: linear-gradient(160deg, var(--bg-start) 0%, var(--bg-mid) 40%, var(--bg-pink) 70%, var(--bg-coral) 100%);
 }
 
 .changelog-shell {
@@ -1252,12 +1250,18 @@ body::after {
 }
 
 .changelog-hero {
-  background: rgba(255, 250, 242, 0.92);
-  border: 1px solid rgba(217, 207, 191, 0.9);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1.5px solid rgba(255, 255, 255, 0.34);
   border-radius: 28px;
-  padding: 28px;
-  box-shadow: 0 18px 50px rgba(70, 54, 32, 0.12);
+  padding: 30px;
+  box-shadow: 0 18px 40px rgba(36, 19, 61, 0.18);
+  backdrop-filter: blur(14px);
+  color: #fff;
   margin-bottom: 20px;
+}
+
+.changelog-hero .text-muted {
+  color: rgba(255, 255, 255, 0.82) !important;
 }
 
 .changelog-list {
@@ -1266,11 +1270,41 @@ body::after {
 }
 
 .changelog-card {
-  background: rgba(255, 250, 242, 0.94);
-  border: 1px solid rgba(217, 207, 191, 0.9);
-  border-radius: 22px;
-  padding: 22px;
-  box-shadow: 0 14px 36px rgba(70, 54, 32, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 14px 36px rgba(36, 19, 61, 0.14);
+  color: var(--text-dark);
+}
+
+.changelog-card .text-muted {
+  color: var(--text-muted) !important;
+}
+
+.changelog-card ul {
+  padding-left: 20px;
+}
+
+.changelog-card li + li {
+  margin-top: 8px;
+}
+
+.changelog-page .badge.text-bg-success {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(224, 210, 255, 0.9)) !important;
+  color: #3a2f4f !important;
+  border: 1px solid rgba(90, 70, 120, 0.35);
+  box-shadow: 0 4px 0 rgba(90, 70, 120, 0.25);
+  font-weight: 800;
+}
+
+.changelog-page .version-link {
+  color: #fff;
+  font-weight: 700;
+}
+
+.changelog-page .version-link:hover {
+  color: #fff176;
 }
 
 .app-modal .modal-header,
