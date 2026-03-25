@@ -72,11 +72,89 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/advanced', advancedRoutes);
 
 app.get('/', (req, res) => {
-  res.json({
-    service: 'familynostress-api',
-    status: 'ok',
-    health: '/health',
-  });
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FamilyNoStress API</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4efe6;
+      --card: #fffaf2;
+      --text: #1f2a1f;
+      --muted: #5f6b5f;
+      --accent: #2c7a51;
+      --border: #d9cfbf;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(44, 122, 81, 0.12), transparent 30%),
+        linear-gradient(180deg, var(--bg), #efe7db);
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--text);
+    }
+    main {
+      max-width: 560px;
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 18px 50px rgba(70, 54, 32, 0.12);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 2rem;
+      line-height: 1.1;
+    }
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+    .badge {
+      display: inline-block;
+      margin-bottom: 18px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(44, 122, 81, 0.12);
+      color: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    a:hover { text-decoration: underline; }
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="badge">API attiva</div>
+    <h1>FamilyNoStress API</h1>
+    <p>Questo subdominio espone il backend applicativo di FamilyNoStress.</p>
+    <p>Se stai facendo un controllo tecnico, l'endpoint di stato è <a href="/health"><code>/health</code></a>.</p>
+    <p>Per usare l'applicazione vai su <a href="https://familynostress.com">familynostress.com</a>.</p>
+  </main>
+</body>
+</html>`);
 });
 
 // Health check
