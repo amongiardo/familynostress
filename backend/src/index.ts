@@ -142,6 +142,26 @@ app.get('/', (req, res) => {
       font-weight: 700;
     }
     a:hover { text-decoration: underline; }
+    .actions {
+      margin-top: 22px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .button {
+      display: inline-block;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: white;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
     code {
       font-family: "SFMono-Regular", Consolas, monospace;
       font-size: 0.95em;
@@ -155,6 +175,10 @@ app.get('/', (req, res) => {
     <p>Questo subdominio espone il backend applicativo di FamilyNoStress.</p>
     <p>Se stai facendo un controllo tecnico, l'endpoint di stato è <a href="/health"><code>/health</code></a>.</p>
     <p>Per usare l'applicazione vai su <a href="https://familynostress.com">familynostress.com</a>.</p>
+    <div class="actions">
+      <a class="button" href="/docs">Accedi alle Docs</a>
+      <a class="button secondary" href="/health">Health Check</a>
+    </div>
   </main>
 </body>
 </html>`);

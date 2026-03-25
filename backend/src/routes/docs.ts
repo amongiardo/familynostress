@@ -1,8 +1,8 @@
-import { NextFunction, Request, Response, Router } from 'express';
+import express, { NextFunction, Request, Response, Router } from 'express';
 import swaggerUi from 'swagger-ui-express';
-import { isLoggedIn } from '../middleware/auth';
 
 const router = Router();
+const formParser = express.urlencoded({ extended: false });
 
 const openApiSpec = {
   openapi: '3.0.3',
@@ -317,7 +317,7 @@ function renderDocsUnlockPage(errorMessage?: string) {
 <body>
   <main>
     <h1>Swagger API</h1>
-    <p>Sei autenticato. Per aprire la documentazione inserisci il codice di accesso configurato lato server.</p>
+    <p>Inserisci il codice di accesso configurato lato server per aprire la documentazione API.</p>
     <form method="post" action="/docs/unlock">
       <label for="code">Codice accesso</label>
       <input id="code" name="code" type="password" autocomplete="off" required />
@@ -357,8 +357,8 @@ function docsUnlockedGuard(req: Request, res: Response, next: NextFunction) {
   return res.status(403).type('html').send(renderDocsUnlockPage());
 }
 
-router.use('/', isLoggedIn, docsGuard, swaggerUi.serve);
-router.get('/', isLoggedIn, (req, res, next) => {
+router.use('/', docsGuard, swaggerUi.serve);
+router.get('/', (req, res, next) => {
   if ((req.session as any)?.swaggerDocsAuthorized === true) {
     return next();
   }
@@ -370,7 +370,7 @@ router.get('/', isLoggedIn, (req, res, next) => {
   return res.type('html').send(renderDocsUnlockPage());
 }, swaggerUi.setup(openApiSpec, { explorer: false }));
 
-router.post('/unlock', isLoggedIn, (req, res) => {
+router.post('/unlock', formParser, (req, res) => {
   const code = typeof req.body?.code === 'string' ? req.body.code : undefined;
   if (!hasValidDocsCode(code)) {
     return res.status(403).type('html').send(renderDocsUnlockPage('Codice non valido'));
@@ -380,7 +380,7 @@ router.post('/unlock', isLoggedIn, (req, res) => {
   return res.redirect('/docs/');
 });
 
-router.get('/openapi.json', isLoggedIn, docsUnlockedGuard, (req, res) => {
+router.get('/openapi.json', docsUnlockedGuard, (req, res) => {
   res.json(openApiSpec);
 });
 
