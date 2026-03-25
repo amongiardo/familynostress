@@ -1,7 +1,7 @@
 {
   "name": "family-meal-planner-backend",
   "version": "1.0.0",
-  "description": "Family Meal Planner API Backend",
+  "description": "Family Planner API Backend",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",

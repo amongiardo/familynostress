@@ -2,21 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, Button, Spinner, Alert, Form } from 'react-bootstrap';
-import { FaGoogle, FaGithub, FaUsers } from 'react-icons/fa';
+import { Card, Button, Spinner, Form } from 'react-bootstrap';
+import { FaUsers } from 'react-icons/fa';
 import { familyApi, authApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
+import StatusModal from '@/components/StatusModal';
 
 export default function InvitePage() {
   const params = useParams();
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, refresh, logout } = useAuth();
   const token = params.token as string;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', password: '' });
+  const [showInviteInfo, setShowInviteInfo] = useState(false);
+  const [acceptingInvite, setAcceptingInvite] = useState(false);
+  const [form, setForm] = useState({ name: '', password: '', passwordConfirm: '' });
   const [inviteData, setInviteData] = useState<{
     email: string;
     family: { id: string; name: string };
@@ -27,6 +30,7 @@ export default function InvitePage() {
       try {
         const data = await familyApi.validateInvite(token);
         setInviteData(data);
+        setShowInviteInfo(true);
       } catch (err: any) {
         setError(err.message || 'Invito non valido o scaduto');
       } finally {
@@ -37,22 +41,24 @@ export default function InvitePage() {
     validateInvite();
   }, [token]);
 
-  const handleGoogleLogin = () => {
-    // Store invite token in session before redirecting to OAuth
-    sessionStorage.setItem('inviteToken', token);
-    window.location.href = `${authApi.getGoogleLoginUrl()}?invite=${token}`;
-  };
-
-  const handleGithubLogin = () => {
-    sessionStorage.setItem('inviteToken', token);
-    window.location.href = `${authApi.getGithubLoginUrl()}?invite=${token}`;
-  };
+  // OAuth login handlers commentati per sviluppi futuri
+  // const handleGoogleLogin = () => {
+  //   sessionStorage.setItem('inviteToken', token);
+  //   window.location.href = `${authApi.getGoogleLoginUrl()}?invite=${token}`;
+  // };
+  // const handleGithubLogin = () => {
+  //   sessionStorage.setItem('inviteToken', token);
+  //   window.location.href = `${authApi.getGithubLoginUrl()}?invite=${token}`;
+  // };
 
   const handleLocalRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteData) {
+    if (!inviteData) return;
+    if (form.password !== form.passwordConfirm) {
+      setLocalError('Le password non coincidono');
       return;
     }
+
     setSubmitting(true);
     setLocalError(null);
     try {
@@ -71,6 +77,21 @@ export default function InvitePage() {
     }
   };
 
+  const handleAcceptInvite = async () => {
+    if (!inviteData) return;
+    setAcceptingInvite(true);
+    setLocalError(null);
+    try {
+      await familyApi.acceptInvite(token);
+      await refresh();
+      router.push('/dashboard');
+    } catch (err: any) {
+      setLocalError(err?.message || 'Impossibile accettare l’invito');
+    } finally {
+      setAcceptingInvite(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="login-page">
@@ -86,7 +107,13 @@ export default function InvitePage() {
     return (
       <div className="login-page">
         <Card className="login-card text-center">
-          <Alert variant="danger">{error}</Alert>
+          <StatusModal
+            show={Boolean(error)}
+            variant="danger"
+            message={error || 'Invito non valido o scaduto'}
+            onClose={() => setError('')}
+          />
+          <p className="text-muted mb-3">{error || 'Invito non valido o scaduto'}</p>
           <Button variant="primary" onClick={() => router.push('/login')}>
             Vai al Login
           </Button>
@@ -106,75 +133,111 @@ export default function InvitePage() {
           </p>
         </div>
 
-        <Alert variant="info" className="text-start">
-          <small>
-            Questo invito è per <strong>{inviteData.email}</strong>. Assicurati di accedere con
-            questo indirizzo email.
-          </small>
-        </Alert>
+        <StatusModal
+          show={showInviteInfo}
+          variant="info"
+          message={`Questo invito è per ${inviteData.email}. Assicurati di accedere con questo indirizzo email.`}
+          onClose={() => setShowInviteInfo(false)}
+        />
 
-        <div className="d-grid gap-3">
-          <Button
-            variant="outline-dark"
-            size="lg"
-            onClick={handleGoogleLogin}
-            className="d-flex align-items-center justify-content-center gap-2"
-          >
-            <FaGoogle /> Accedi con Google
-          </Button>
+        <StatusModal
+          show={Boolean(localError)}
+          variant="danger"
+          message={localError || ''}
+          onClose={() => setLocalError(null)}
+        />
+        {user ? (
+          user.email.toLowerCase() === inviteData.email.toLowerCase() ? (
+            <div className="text-start">
+              <Form.Group className="mb-3" controlId="inviteEmailLogged">
+                <Form.Label>Email</Form.Label>
+                <Form.Control type="email" value={inviteData.email} disabled />
+              </Form.Group>
+              <div className="d-grid gap-2">
+                <Button variant="success" onClick={handleAcceptInvite} disabled={acceptingInvite}>
+                  {acceptingInvite ? <Spinner size="sm" animation="border" /> : 'Accetta Invito'}
+                </Button>
+                <Button
+                  variant="outline-danger"
+                  className="btn-danger-soft"
+                  onClick={async () => {
+                    await refresh();
+                    router.push(user?.activeFamilyId ? '/dashboard' : '/impostazioni');
+                  }}
+                >
+                  Annulla
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-start">
+              <p className="text-muted small">
+                Sei autenticato come <strong>{user.email}</strong>, ma questo invito è per{' '}
+                <strong>{inviteData.email}</strong>.
+              </p>
+              <div className="d-grid gap-2">
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    await logout();
+                    router.push(`/login?invite=${token}`);
+                  }}
+                >
+                  Esci e Accedi con email corretta
+                </Button>
+              </div>
+            </div>
+          )
+        ) : (
+          <Form onSubmit={handleLocalRegister} className="text-start">
+            <Form.Group className="mb-3" controlId="inviteEmail">
+              <Form.Label>Email</Form.Label>
+              <Form.Control type="email" value={inviteData.email} disabled />
+            </Form.Group>
 
-          <Button
-            variant="dark"
-            size="lg"
-            onClick={handleGithubLogin}
-            className="d-flex align-items-center justify-content-center gap-2"
-          >
-            <FaGithub /> Accedi con GitHub
-          </Button>
-        </div>
+            <Form.Group className="mb-3" controlId="inviteName">
+              <Form.Label>Nome</Form.Label>
+              <Form.Control
+                type="text"
+                className="placeholder-soft"
+                placeholder="es: Il tuo nome"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </Form.Group>
 
-        <div className="my-4 text-muted">oppure</div>
+            <Form.Group className="mb-3" controlId="invitePassword">
+              <Form.Label>Password</Form.Label>
+              <Form.Control
+                type="password"
+                className="placeholder-soft"
+                placeholder="es: ••••••••"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required
+              />
+            </Form.Group>
 
-        {localError && (
-          <Alert variant="danger" className="mb-3 text-start">
-            {localError}
-          </Alert>
+            <Form.Group className="mb-3" controlId="invitePasswordConfirm">
+              <Form.Label>Conferma Password</Form.Label>
+              <Form.Control
+                type="password"
+                className="placeholder-soft"
+                placeholder="es: ••••••••"
+                value={form.passwordConfirm}
+                onChange={(e) => setForm({ ...form, passwordConfirm: e.target.value })}
+                required
+              />
+            </Form.Group>
+
+            <div className="d-grid">
+              <Button variant="success" type="submit" disabled={submitting}>
+                Crea Account e Entra
+              </Button>
+            </div>
+          </Form>
         )}
-
-        <Form onSubmit={handleLocalRegister} className="text-start">
-          <Form.Group className="mb-3" controlId="inviteEmail">
-            <Form.Label>Email</Form.Label>
-            <Form.Control type="email" value={inviteData.email} disabled />
-          </Form.Group>
-
-          <Form.Group className="mb-3" controlId="inviteName">
-            <Form.Label>Nome</Form.Label>
-            <Form.Control
-              type="text"
-              placeholder="Il tuo nome"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </Form.Group>
-
-          <Form.Group className="mb-3" controlId="invitePassword">
-            <Form.Label>Password</Form.Label>
-            <Form.Control
-              type="password"
-              placeholder="••••••••"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-            />
-          </Form.Group>
-
-          <div className="d-grid">
-            <Button variant="success" type="submit" disabled={submitting}>
-              Crea Account e Entra
-            </Button>
-          </div>
-        </Form>
       </Card>
     </div>
   );

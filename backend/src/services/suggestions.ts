@@ -11,8 +11,19 @@ interface DishWithUsage extends Dish {
 export async function getSuggestions(
   familyId: string,
   date: Date,
-  mealType: MealType
+  mealType: MealType,
+  slotCategory: DishCategory
 ): Promise<SuggestionResult[]> {
+  const familySettings = await prisma.family.findUnique({
+    where: { id: familyId },
+    select: {
+      rotationWindowDays: true,
+      maxWeeklyDishRepeat: true,
+    },
+  });
+  const rotationWindowDays = Math.max(1, familySettings?.rotationWindowDays || 7);
+  const maxWeeklyDishRepeat = Math.max(1, familySettings?.maxWeeklyDishRepeat || 2);
+
   // Get all dishes for the family
   const dishes = await prisma.dish.findMany({
     where: { familyId },
@@ -22,8 +33,8 @@ export async function getSuggestions(
     return [];
   }
 
-  // Get meal plans from last 7 days for anti-repetition rule
-  const sevenDaysAgo = subDays(date, 7);
+  // Get meal plans from configurable rotation window for anti-repetition rule
+  const sevenDaysAgo = subDays(date, rotationWindowDays);
   const recentMeals = await prisma.mealPlan.findMany({
     where: {
       familyId,
@@ -83,36 +94,29 @@ export async function getSuggestions(
     }
   }
 
-  // Determine which categories to suggest based on meal type
-  const categoriesForMeal: DishCategory[] =
-    mealType === 'pranzo'
-      ? ['primo', 'secondo', 'contorno']
-      : ['secondo', 'contorno'];
-
   // Score each dish
   const scoredDishes: SuggestionResult[] = [];
 
   for (const dish of dishes) {
-    // Skip if not in the required categories for this meal type
-    if (!categoriesForMeal.includes(dish.category)) {
+    if (dish.category !== slotCategory) {
       continue;
     }
 
     let score = 100;
     let reason = '';
 
-    // Rule 1: Anti-repetition (skip if used in last 7 days)
+    // Rule 1: Anti-repetition (configurable window)
     if (recentDishIds.has(dish.id)) {
       score -= 80;
       reason = 'Consumato di recente';
     }
 
-    // Rule 2: Weekly balance (max 2 times per week for same category dish)
+    // Rule 2: Weekly balance (configurable max repeat)
     const categoryMap = weeklyCategoryCount.get(dish.category);
     const weeklyCount = categoryMap?.get(dish.id) || 0;
-    if (weeklyCount >= 2) {
+    if (weeklyCount >= maxWeeklyDishRepeat) {
       score -= 50;
-      reason = reason || 'Già consumato 2+ volte questa settimana';
+      reason = reason || `Già consumato ${maxWeeklyDishRepeat}+ volte questa settimana`;
     }
 
     // Rule 4: Frequency-based priority (less used = higher score)
@@ -142,26 +146,5 @@ export async function getSuggestions(
   // Sort by score descending and return top suggestions per category
   scoredDishes.sort((a, b) => b.score - a.score);
 
-  // Group by category and return top 2 per category
-  const resultByCategory = new Map<string, SuggestionResult[]>();
-
-  for (const suggestion of scoredDishes) {
-    const category = suggestion.dish.category;
-    if (!resultByCategory.has(category)) {
-      resultByCategory.set(category, []);
-    }
-    const categoryResults = resultByCategory.get(category)!;
-    if (categoryResults.length < 3) {
-      categoryResults.push(suggestion);
-    }
-  }
-
-  // Flatten and return
-  const result: SuggestionResult[] = [];
-  for (const category of categoriesForMeal) {
-    const suggestions = resultByCategory.get(category) || [];
-    result.push(...suggestions);
-  }
-
-  return result;
+  return scoredDishes.slice(0, 5);
 }

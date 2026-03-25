@@ -14,5 +14,11 @@ export function parseDateOnly(dateStr: string): Date | null {
     return null;
   }
 
-  return parsed;
+  const [year, month, day] = dateStr.split('-').map((part) => Number(part));
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  // Use UTC noon to avoid timezone offsets shifting the date.
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 }

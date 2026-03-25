@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { DishCategory } from '@prisma/client';
 import prisma from '../prisma';
 import { isAuthenticated, getFamilyId } from '../middleware/auth';
+import { requireFamilyAuthCode } from '../middleware/familyAuthCode';
+import { requirePlanningWrite } from '../middleware/roles';
 
 const router = Router();
 
@@ -35,6 +37,51 @@ router.get('/', isAuthenticated, async (req, res, next) => {
   }
 });
 
+// Delete all dishes for family (and related meal plans)
+router.delete('/all', isAuthenticated, requirePlanningWrite, requireFamilyAuthCode, async (req, res, next) => {
+  try {
+    const familyId = getFamilyId(req);
+
+    const [deletedMeals, deletedDishes] = await prisma.$transaction([
+      prisma.mealPlan.deleteMany({ where: { familyId } }),
+      prisma.dish.deleteMany({ where: { familyId } }),
+    ]);
+
+    res.json({
+      success: true,
+      deletedMeals: deletedMeals.count,
+      deletedDishes: deletedDishes.count,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export dishes as CSV
+router.get('/export', isAuthenticated, async (req, res, next) => {
+  try {
+    const familyId = getFamilyId(req);
+    const dishes = await prisma.dish.findMany({
+      where: { familyId },
+      orderBy: { name: 'asc' },
+    });
+
+    const header = 'name,category,ingredients';
+    const lines = dishes.map((dish) => {
+      const name = `"${dish.name.replace(/"/g, '""')}"`;
+      const category = dish.category;
+      const ingredients = `"${(dish.ingredients || [])
+        .join(';')
+        .replace(/"/g, '""')}"`;
+      return `${name},${category},${ingredients}`;
+    });
+
+    res.json({ csv: [header, ...lines].join('\n') });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single dish
 router.get('/:id', isAuthenticated, async (req, res, next) => {
   try {
@@ -56,10 +103,10 @@ router.get('/:id', isAuthenticated, async (req, res, next) => {
 });
 
 // Create dish
-router.post('/', isAuthenticated, async (req, res, next) => {
+router.post('/', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
-    const { name, category, ingredients } = req.body;
+    const { name, category, ingredients, estimatedCost } = req.body;
 
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'Name is required' });
@@ -75,6 +122,10 @@ router.post('/', isAuthenticated, async (req, res, next) => {
         name: name.trim(),
         category: category as DishCategory,
         ingredients: Array.isArray(ingredients) ? ingredients : [],
+        estimatedCost:
+          Number.isFinite(Number(estimatedCost)) && Number(estimatedCost) >= 0
+            ? Number(Number(estimatedCost).toFixed(2))
+            : null,
       },
     });
 
@@ -85,11 +136,11 @@ router.post('/', isAuthenticated, async (req, res, next) => {
 });
 
 // Update dish
-router.put('/:id', isAuthenticated, async (req, res, next) => {
+router.put('/:id', isAuthenticated, requirePlanningWrite, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { id } = req.params;
-    const { name, category, ingredients } = req.body;
+    const { name, category, ingredients, estimatedCost } = req.body;
 
     // Verify dish belongs to family
     const existing = await prisma.dish.findFirst({
@@ -114,6 +165,14 @@ router.put('/:id', isAuthenticated, async (req, res, next) => {
       updateData.ingredients = ingredients;
     }
 
+    if (estimatedCost !== undefined) {
+      const parsed = Number(estimatedCost);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return res.status(400).json({ error: 'Estimated cost must be a positive number' });
+      }
+      updateData.estimatedCost = Number(parsed.toFixed(2));
+    }
+
     const dish = await prisma.dish.update({
       where: { id },
       data: updateData,
@@ -126,7 +185,7 @@ router.put('/:id', isAuthenticated, async (req, res, next) => {
 });
 
 // Delete dish
-router.delete('/:id', isAuthenticated, async (req, res, next) => {
+router.delete('/:id', isAuthenticated, requirePlanningWrite, requireFamilyAuthCode, async (req, res, next) => {
   try {
     const familyId = getFamilyId(req);
     const { id } = req.params;
@@ -140,20 +199,10 @@ router.delete('/:id', isAuthenticated, async (req, res, next) => {
       return res.status(404).json({ error: 'Dish not found' });
     }
 
-    // Check if dish is used in meal plans
-    const usedInMeals = await prisma.mealPlan.findFirst({
-      where: { dishId: id },
-    });
-
-    if (usedInMeals) {
-      return res.status(400).json({
-        error: 'Cannot delete dish that is used in meal plans',
-      });
-    }
-
-    await prisma.dish.delete({
-      where: { id },
-    });
+    await prisma.$transaction([
+      prisma.mealPlan.deleteMany({ where: { familyId, dishId: id } }),
+      prisma.dish.delete({ where: { id } }),
+    ]);
 
     res.json({ success: true });
   } catch (error) {
