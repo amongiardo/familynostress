@@ -20,7 +20,7 @@ import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { FaEnvelope, FaTrash, FaCopy, FaCheck, FaPaste, FaKey } from 'react-icons/fa';
 import DashboardLayout from '@/components/DashboardLayout';
-import { authApi, familyApi, weatherApi } from '@/lib/api';
+import { advancedApi, authApi, familyApi, weatherApi } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import StatusModal from '@/components/StatusModal';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -123,6 +123,15 @@ export default function ImpostazioniPage() {
     queryKey: ['auth', 'api-tokens'],
     queryFn: async () => (await authApi.listApiTokens()).tokens,
     enabled: Boolean(user),
+  });
+
+  const { data: tokenAuditLogs, isLoading: tokenAuditLogsLoading } = useQuery({
+    queryKey: ['advanced', 'audit', 'api-tokens'],
+    queryFn: async () => {
+      const logs = await advancedApi.listAudit(80);
+      return logs.filter((log) => log.entityType === 'api_access_token').slice(0, 8);
+    },
+    enabled: Boolean(user?.activeFamilyId),
   });
 
   useEffect(() => {
@@ -1062,6 +1071,31 @@ export default function ImpostazioniPage() {
             ) : (
               <Card.Body className="text-muted">
                 Nessun token API attivo. Creane uno dal profilo utente per collegare un’app iOS o un client esterno.
+              </Card.Body>
+            )}
+          </Card>
+
+          <Card className="mb-4 settings-card">
+            <Card.Header>Storico Token API</Card.Header>
+            {tokenAuditLogsLoading ? (
+              <Card.Body className="text-center">
+                <Spinner size="sm" animation="border" variant="success" />
+              </Card.Body>
+            ) : tokenAuditLogs && tokenAuditLogs.length > 0 ? (
+              <ListGroup variant="flush" className="settings-list">
+                {tokenAuditLogs.map((log) => (
+                  <ListGroup.Item key={log.id}>
+                    <div className="fw-medium">{log.action}</div>
+                    <div className="small text-muted">
+                      {format(parseISO(log.createdAt), 'd MMM yyyy HH:mm', { locale: it })}
+                      {log.user?.name ? ` • ${log.user.name}` : ''}
+                    </div>
+                  </ListGroup.Item>
+                ))}
+              </ListGroup>
+            ) : (
+              <Card.Body className="text-muted">
+                Nessun evento token registrato per la famiglia attiva.
               </Card.Body>
             )}
           </Card>

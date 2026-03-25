@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button, Form } from 'react-bootstrap';
 import { useAuth } from '@/lib/AuthContext';
 import { authApi, familyApi } from '@/lib/api';
@@ -201,7 +202,11 @@ function LoginPageContent() {
         <p className="mt-4 text-muted small">
           Accedendo, accetti i nostri termini di servizio
         </p>
-        <p className="text-muted small mb-0">Versione {appVersion}</p>
+        <p className="text-muted small mb-0">
+          <Link href="/changelog" className="version-link">
+            Versione {appVersion}
+          </Link>
+        </p>
       </div>
     </div>
   );

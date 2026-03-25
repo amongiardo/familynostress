@@ -97,6 +97,39 @@ const openApiSpec = {
         },
       },
     },
+    '/auth/local/register-token': {
+      post: {
+        tags: ['auth'],
+        summary: 'Registrazione mobile con Bearer token immediato',
+        description:
+          'Crea un nuovo utente e restituisce subito un Bearer token. È il flusso più comodo per una app iOS che vuole essere indipendente dal browser fin dalla registrazione.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password', 'name'],
+                properties: {
+                  email: { type: 'string', example: 'utente@example.com' },
+                  password: { type: 'string', example: 'Password123!' },
+                  name: { type: 'string', example: 'Mario' },
+                  familyName: { type: 'string', example: 'Rossi' },
+                  inviteToken: { type: 'string', nullable: true },
+                  tokenName: { type: 'string', example: 'ios-iphone-mario' },
+                  expiresInDays: { type: 'integer', example: 30 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Utente creato e Bearer token emesso',
+          },
+        },
+      },
+    },
     '/auth/local/login': {
       post: {
         tags: ['auth'],

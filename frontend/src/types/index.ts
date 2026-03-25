@@ -214,6 +214,13 @@ export interface AuditLogItem {
   } | null;
 }
 
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  title: string;
+  items: string[];
+}
+
 export interface DishFrequency {
   dish: Dish;
   weekCount: number;

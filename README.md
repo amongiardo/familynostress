@@ -194,6 +194,13 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ## API Endpoints
 
 ### Auth
+- `POST /auth/local/register` - Registrazione web con sessione cookie
+- `POST /auth/local/register-token` - Registrazione mobile con Bearer token immediato
+- `POST /auth/local/login` - Login web con sessione cookie
+- `POST /auth/token/login` - Login mobile/client esterni con Bearer token
+- `GET /auth/api-tokens` - Lista token manuali dell'utente
+- `POST /auth/api-tokens` - Crea token manuale per test/script/integrazioni
+- `DELETE /auth/api-tokens/:id` - Revoca token manuale
 - `GET /auth/google` - Login con Google
 - `GET /auth/github` - Login con GitHub
 - `GET /auth/me` - Info utente corrente

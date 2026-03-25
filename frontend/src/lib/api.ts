@@ -101,6 +101,19 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  registerLocalWithToken: (data: {
+    email: string;
+    password: string;
+    name: string;
+    familyName?: string;
+    inviteToken?: string;
+    tokenName?: string;
+    expiresInDays?: number;
+  }) =>
+    fetchApi<CreatedApiAccessToken & { user: User }>('/auth/local/register-token', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   listApiTokens: () => fetchApi<{ tokens: ApiAccessToken[] }>('/auth/api-tokens'),
   createApiToken: (data: { name: string; expiresInDays: number }) =>
     fetchApi<CreatedApiAccessToken>('/auth/api-tokens', {
