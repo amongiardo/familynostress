@@ -9,7 +9,8 @@ const openApiSpec = {
   info: {
     title: 'FamilyNoStress API',
     version: '0.7.0',
-    description: 'Documentazione iniziale delle API principali di FamilyNoStress.',
+    description:
+      'Documentazione iniziale delle API principali di FamilyNoStress. Flusso consigliato per client iOS/mobile: registrazione o login utente, ottenimento Bearer token e uso del token sulle API protette.',
   },
   servers: [
     {
@@ -69,6 +70,8 @@ const openApiSpec = {
       post: {
         tags: ['auth'],
         summary: 'Registrazione locale',
+        description:
+          'Crea un nuovo utente web/mobile. Dopo la registrazione il browser riceve una sessione cookie; un client mobile può poi ottenere un Bearer token tramite /auth/token/login.',
         requestBody: {
           required: true,
           content: {
@@ -98,6 +101,8 @@ const openApiSpec = {
       post: {
         tags: ['auth'],
         summary: 'Login locale',
+        description:
+          'Login web classico con sessione server-side e cookie HttpOnly. Da usare per browser o web app.',
         requestBody: {
           required: true,
           content: {
@@ -127,6 +132,8 @@ const openApiSpec = {
       post: {
         tags: ['auth'],
         summary: 'Login per client esterni con Bearer token',
+        description:
+          'Flusso consigliato per app iOS o client non-browser. Valida email/password e restituisce un Bearer token personale con scadenza.',
         requestBody: {
           required: true,
           content: {
@@ -155,6 +162,8 @@ const openApiSpec = {
       get: {
         tags: ['auth'],
         summary: 'Elenco token API personali',
+        description:
+          'Mostra i token API manuali creati dall’utente per sviluppo, test, Postman, script o integrazioni tecniche.',
         security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         responses: {
           '200': {
@@ -165,6 +174,8 @@ const openApiSpec = {
       post: {
         tags: ['auth'],
         summary: 'Crea un nuovo token API personale',
+        description:
+          'Crea un token manuale persistente. Utile per sviluppo, test e integrazioni tecniche; non è necessario per il flusso utente standard di una app iOS.',
         security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         responses: {
           '201': {
@@ -173,10 +184,37 @@ const openApiSpec = {
         },
       },
     },
+    '/auth/api-tokens/{id}': {
+      delete: {
+        tags: ['auth'],
+        summary: 'Revoca un token API personale',
+        security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Token revocato',
+          },
+          '404': {
+            description: 'Token non trovato',
+          },
+        },
+      },
+    },
     '/api/family': {
       get: {
         tags: ['family'],
         summary: 'Famiglia attiva',
+        description:
+          'Con bearer token, se l’utente appartiene a più famiglie puoi specificare X-Family-Id per scegliere il contesto attivo della chiamata.',
         security: [{ cookieAuth: [] }, { bearerAuth: [] }],
         responses: {
           '200': {

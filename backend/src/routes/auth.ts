@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
 import bcrypt from 'bcryptjs';
 import passport from 'passport';
 import prisma from '../prisma';
@@ -7,6 +7,7 @@ import { ensureUserAuthCode } from '../middleware/familyAuthCode';
 import { authenticateRequest } from '../middleware/auth';
 import { generateApiTokenValue, hashApiTokenValue } from '../utils/apiToken';
 import { createApiTokenRecord, listActiveApiTokensForUser, revokeApiTokenForUser } from '../services/apiTokens';
+import { logAudit } from '../services/audit';
 
 const router = Router();
 const NO_ACTIVE_FAMILY_MESSAGE =
@@ -74,6 +75,18 @@ async function resolveActiveFamilyId(userId: string, current?: string) {
   });
 
   return firstMembership?.familyId;
+}
+
+function getRequestedFamilyId(req: Request): string | undefined {
+  return typeof req.headers['x-family-id'] === 'string'
+    ? req.headers['x-family-id']
+    : Array.isArray(req.headers['x-family-id'])
+      ? req.headers['x-family-id'][0]
+      : undefined;
+}
+
+async function resolveAuditFamilyIdForUser(userId: string, current?: string) {
+  return resolveActiveFamilyId(userId, current);
 }
 
 async function buildAuthPayload(userId: string, activeFamilyId?: string) {
@@ -442,6 +455,19 @@ router.post('/token/login', async (req, res, next) => {
       normalizeApiTokenDays(expiresInDays)
     );
 
+    await logAudit({
+      familyId: activeFamilyId,
+      userId: user.id,
+      action: 'API_TOKEN_LOGIN_ISSUED',
+      entityType: 'api_access_token',
+      entityId: issuedToken.metadata.id,
+      details: {
+        name: issuedToken.metadata.name,
+        expiresAt: issuedToken.metadata.expiresAt,
+        authMethod: 'token_login',
+      },
+    });
+
     res.json({
       token: issuedToken.token,
       tokenType: 'Bearer',
@@ -519,6 +545,25 @@ router.post('/api-tokens', async (req, res, next) => {
       normalizeApiTokenDays(expiresInDays)
     );
 
+    const auditFamilyId = await resolveAuditFamilyIdForUser(
+      req.user.id,
+      req.authMethod === 'session' ? req.session.activeFamilyId : getRequestedFamilyId(req)
+    );
+    if (auditFamilyId) {
+      await logAudit({
+        familyId: auditFamilyId,
+        userId: req.user.id,
+        action: 'API_TOKEN_CREATED',
+        entityType: 'api_access_token',
+        entityId: issuedToken.metadata.id,
+        details: {
+          name: issuedToken.metadata.name,
+          expiresAt: issuedToken.metadata.expiresAt,
+          authMethod: req.authMethod,
+        },
+      });
+    }
+
     res.status(201).json({
       token: issuedToken.token,
       tokenType: 'Bearer',
@@ -542,6 +587,23 @@ router.delete('/api-tokens/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Token not found' });
     }
 
+    const auditFamilyId = await resolveAuditFamilyIdForUser(
+      req.user.id,
+      req.authMethod === 'session' ? req.session.activeFamilyId : getRequestedFamilyId(req)
+    );
+    if (auditFamilyId) {
+      await logAudit({
+        familyId: auditFamilyId,
+        userId: req.user.id,
+        action: 'API_TOKEN_REVOKED',
+        entityType: 'api_access_token',
+        entityId: req.params.id,
+        details: {
+          authMethod: req.authMethod,
+        },
+      });
+    }
+
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -553,6 +615,22 @@ router.post('/logout', async (req, res, next) => {
     if (await authenticateRequest(req)) {
       if (req.authMethod === 'api_token' && req.apiTokenId) {
         await revokeApiTokenForUser(req.apiTokenId, req.user?.id || '');
+        if (req.user) {
+          const auditFamilyId = await resolveAuditFamilyIdForUser(req.user.id, getRequestedFamilyId(req));
+          if (auditFamilyId) {
+            await logAudit({
+              familyId: auditFamilyId,
+              userId: req.user.id,
+              action: 'API_TOKEN_REVOKED',
+              entityType: 'api_access_token',
+              entityId: req.apiTokenId,
+              details: {
+                authMethod: 'api_token',
+                reason: 'logout',
+              },
+            });
+          }
+        }
         return res.json({ success: true });
       }
     }
