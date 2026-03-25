@@ -71,6 +71,14 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/advanced', advancedRoutes);
 
+app.get('/', (req, res) => {
+  res.json({
+    service: 'familynostress-api',
+    status: 'ok',
+    health: '/health',
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
