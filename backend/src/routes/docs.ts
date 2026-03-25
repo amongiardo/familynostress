@@ -142,15 +142,21 @@ function hasValidDocsCode(rawCode: unknown): boolean {
 function docsGuard(req: Request, res: Response, next: NextFunction) {
   const queryCode = typeof req.query.code === 'string' ? req.query.code : undefined;
   const headerCode = typeof req.headers['x-docs-code'] === 'string' ? req.headers['x-docs-code'] : undefined;
+  const sessionCodeValidated = (req.session as any)?.swaggerDocsAuthorized === true;
 
   if (!process.env.SWAGGER_ACCESS_CODE) {
     return res.status(503).json({ error: 'Swagger access code not configured' });
+  }
+
+  if (sessionCodeValidated) {
+    return next();
   }
 
   if (!hasValidDocsCode(queryCode) && !hasValidDocsCode(headerCode)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
+  (req.session as any).swaggerDocsAuthorized = true;
   return next();
 }
 
