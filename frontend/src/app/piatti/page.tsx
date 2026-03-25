@@ -12,6 +12,7 @@ import {
   ListGroup,
   InputGroup,
   Spinner,
+  Table,
 } from 'react-bootstrap';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from 'react-icons/fa';
@@ -69,6 +70,11 @@ export default function PiattiPage() {
         category: categoryFilter || undefined,
         search: search || undefined,
       }),
+  });
+
+  const { data: frequency, isLoading: isFrequencyLoading } = useQuery({
+    queryKey: ['dish-frequency'],
+    queryFn: () => dishesApi.frequency(),
   });
 
   const createMutation = useMutation({
@@ -439,6 +445,46 @@ export default function PiattiPage() {
         message={error}
         onClose={() => setError('')}
       />
+
+      <Card className="mb-4">
+        <Card.Body>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="mb-0">Frequenza utilizzo (settimana e mese correnti)</h5>
+          </div>
+          {isFrequencyLoading ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" variant="success" />
+            </div>
+          ) : frequency && frequency.length > 0 ? (
+            <Table responsive hover className="mb-0">
+              <thead>
+                <tr>
+                  <th>Piatto</th>
+                  <th>Categoria</th>
+                  <th className="text-end">Settimana</th>
+                  <th className="text-end">Mese</th>
+                </tr>
+              </thead>
+              <tbody>
+                {frequency.map((row) => (
+                  <tr key={row.dish.id}>
+                    <td>{row.dish.name}</td>
+                    <td>
+                      <Badge className={getCategoryBadgeClass(row.dish.category)}>
+                        {categoryLabels[row.dish.category]}
+                      </Badge>
+                    </td>
+                    <td className="text-end">{row.weekCount}</td>
+                    <td className="text-end">{row.monthCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <p className="text-muted mb-0">Nessun dato disponibile.</p>
+          )}
+        </Card.Body>
+      </Card>
 
       {isLoading ? (
         <div className="text-center py-5">

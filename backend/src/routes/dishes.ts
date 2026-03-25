@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { DishCategory } from '@prisma/client';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import prisma from '../prisma';
 import { isAuthenticated, getFamilyId } from '../middleware/auth';
 import { requireFamilyAuthCode } from '../middleware/familyAuthCode';
 import { requirePlanningWrite } from '../middleware/roles';
+import { parseDateOnly } from '../utils/date';
 
 const router = Router();
 
@@ -32,6 +34,64 @@ router.get('/', isAuthenticated, async (req, res, next) => {
     });
 
     res.json(dishes);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get dish usage frequency for current week and month
+router.get('/frequency', isAuthenticated, async (req, res, next) => {
+  try {
+    const familyId = getFamilyId(req);
+    const { date } = req.query;
+
+    let baseDate = new Date();
+    if (date && typeof date === 'string') {
+      const parsed = parseDateOnly(date);
+      if (!parsed) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      baseDate = parsed;
+    }
+
+    const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(baseDate, { weekStartsOn: 1 });
+    const monthStart = startOfMonth(baseDate);
+    const monthEnd = endOfMonth(baseDate);
+
+    const [dishes, weekCounts, monthCounts] = await Promise.all([
+      prisma.dish.findMany({
+        where: { familyId },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.mealPlan.groupBy({
+        by: ['dishId'],
+        where: {
+          familyId,
+          date: { gte: weekStart, lte: weekEnd },
+        },
+        _count: { dishId: true },
+      }),
+      prisma.mealPlan.groupBy({
+        by: ['dishId'],
+        where: {
+          familyId,
+          date: { gte: monthStart, lte: monthEnd },
+        },
+        _count: { dishId: true },
+      }),
+    ]);
+
+    const weekMap = new Map(weekCounts.map((row) => [row.dishId, row._count.dishId]));
+    const monthMap = new Map(monthCounts.map((row) => [row.dishId, row._count.dishId]));
+
+    const frequency = dishes.map((dish) => ({
+      dish,
+      weekCount: weekMap.get(dish.id) || 0,
+      monthCount: monthMap.get(dish.id) || 0,
+    }));
+
+    res.json(frequency);
   } catch (error) {
     next(error);
   }
@@ -70,9 +130,7 @@ router.get('/export', isAuthenticated, async (req, res, next) => {
     const lines = dishes.map((dish) => {
       const name = `"${dish.name.replace(/"/g, '""')}"`;
       const category = dish.category;
-      const ingredients = `"${(dish.ingredients || [])
-        .join(';')
-        .replace(/"/g, '""')}"`;
+      const ingredients = `"${(dish.ingredients || []).join(';').replace(/"/g, '""')}"`;
       return `${name},${category},${ingredients}`;
     });
 

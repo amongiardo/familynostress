@@ -1,5 +1,6 @@
 import {
   Dish,
+  DishFrequency,
   Family,
   MealPlan,
   MealOut,
@@ -358,6 +359,8 @@ export const dishesApi = {
     return fetchApi<Dish[]>(`/api/dishes${query ? `?${query}` : ''}`);
   },
   get: (id: string) => fetchApi<Dish>(`/api/dishes/${id}`),
+  frequency: (date?: string) =>
+    fetchApi<DishFrequency[]>(`/api/dishes/frequency${date ? `?date=${date}` : ''}`),
   create: (data: { name: string; category: string; ingredients: string[] }) =>
     fetchApi<Dish>('/api/dishes', {
       method: 'POST',
