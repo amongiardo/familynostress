@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT=/root/deployments/familynostress
+REPO_DIR="$APP_ROOT/repo"
+SSH_KEY=/root/.ssh/id_ed25519_woodpecker_github
+
+export PATH=/root/.nvs/node/24.14.0/x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+cd "$REPO_DIR"
+git fetch origin
+git checkout main
+git reset --hard origin/main
+
+cd "$REPO_DIR/backend"
+set -a
+. "$APP_ROOT/backend.env"
+set +a
+npm ci --include=dev
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+
+cd "$REPO_DIR/frontend"
+set -a
+. "$APP_ROOT/frontend.env"
+set +a
+npm ci --include=dev
+npm run build
+
+systemctl restart familynostress-backend.service
+systemctl restart familynostress-frontend.service
+
+systemctl --no-pager --full status familynostress-backend.service familynostress-frontend.service

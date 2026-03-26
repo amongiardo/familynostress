@@ -11,6 +11,11 @@ build/
 .env
 .env.*
 !.env.example
+*.local
+backend.env.local
+frontend.env.local
+deploy.sh.local
+ONLYINVPS/
 
 # Logs
 npm-debug.log*

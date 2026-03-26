@@ -14,6 +14,44 @@ PG_DATA="/Library/PostgreSQL/16/data"
 
 mkdir -p "$LOG_DIR" "$PID_DIR"
 
+ensure_backend_dependencies() {
+  cd "$ROOT_DIR/backend"
+  local need_install=0
+
+  if [[ ! -d node_modules ]]; then
+    need_install=1
+  elif ! node -e "require.resolve('swagger-ui-express/package.json')" >/dev/null 2>&1; then
+    need_install=1
+  fi
+
+  if [[ "$need_install" -eq 1 ]]; then
+    echo "Installing backend dependencies..."
+    npm install || {
+      echo "Backend dependency install failed. Check network access and npm registry."
+      return 1
+    }
+  fi
+}
+
+ensure_frontend_dependencies() {
+  cd "$ROOT_DIR/frontend"
+  if [[ ! -d node_modules ]]; then
+    echo "Installing frontend dependencies..."
+    npm install || {
+      echo "Frontend dependency install failed. Check network access and npm registry."
+      return 1
+    }
+  fi
+}
+
+print_local_urls() {
+  echo "Frontend: http://localhost:3000"
+  echo "Backend health: http://localhost:3001/health"
+  echo "API docs: http://localhost:3001/docs"
+  echo "If docs are locked, set SWAGGER_ACCESS_CODE in backend/.env and open:"
+  echo "  http://localhost:3001/docs?code=<SWAGGER_ACCESS_CODE>"
+}
+
 ensure_nunito_fonts() {
   local required=(
     "nunito-latin-400-normal.woff2"
@@ -150,18 +188,23 @@ run_update() {
   echo "[1/3] PostgreSQL check..."
   ensure_postgres
 
-  echo "[2/3] Prisma migrate deploy + generate..."
+  echo "[2/4] Backend dependencies..."
+  ensure_backend_dependencies
+
+  echo "[3/4] Prisma migrate deploy + generate..."
   cd "$ROOT_DIR/backend"
   npx prisma migrate deploy
   npx prisma generate
 
-  echo "[3/3] Backend build..."
+  echo "[4/4] Backend build..."
   npm run build
 }
 
 run_start() {
   ensure_nunito_fonts || true
   ensure_postgres || true
+  ensure_backend_dependencies
+  ensure_frontend_dependencies
   kill_node_ports
 
   echo "Starting backend..."
@@ -175,6 +218,7 @@ run_start() {
   echo $! > "$PID_DIR/frontend.pid"
 
   echo "Stack started."
+  print_local_urls
 }
 
 run_stop() {
