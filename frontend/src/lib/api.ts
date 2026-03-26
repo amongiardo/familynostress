@@ -101,6 +101,11 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  resetLocalPassword: (data: { email: string; authCode: string; newPassword: string }) =>
+    fetchApi<{ success: boolean }>('/auth/local/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   registerLocalWithToken: (data: {
     email: string;
     password: string;

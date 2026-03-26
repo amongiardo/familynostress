@@ -8,7 +8,7 @@ const openApiSpec = {
   openapi: '3.0.3',
   info: {
     title: 'FamilyNoStress API',
-    version: '0.7.0',
+    version: '0.8.2',
     description:
       'Documentazione iniziale delle API principali di FamilyNoStress. Flusso consigliato per client iOS/mobile: registrazione o login utente, ottenimento Bearer token e uso del token sulle API protette.',
   },
@@ -157,6 +157,41 @@ const openApiSpec = {
           },
           '401': {
             description: 'Credenziali non valide',
+          },
+        },
+      },
+    },
+    '/auth/local/reset-password': {
+      post: {
+        tags: ['auth'],
+        summary: 'Recupero password self-service',
+        description:
+          'Permette di impostare una nuova password usando email, codice personale a 5 caratteri e nuova password. Al successo vengono revocati i Bearer token esistenti dell’utente.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'authCode', 'newPassword'],
+                properties: {
+                  email: { type: 'string', example: 'utente@example.com' },
+                  authCode: { type: 'string', example: 'A1B2C' },
+                  newPassword: { type: 'string', example: 'NuovaPassword123!' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Password aggiornata',
+          },
+          '401': {
+            description: 'Dati di recupero non validi',
+          },
+          '429': {
+            description: 'Troppi tentativi di recupero',
           },
         },
       },

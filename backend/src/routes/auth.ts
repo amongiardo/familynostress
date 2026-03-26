@@ -14,6 +14,9 @@ const NO_ACTIVE_FAMILY_MESSAGE =
   'Non fai più parte di nessuna famiglia. Puoi crearne una nuova registrandoti oppure attendere un nuovo invito.';
 const DEFAULT_API_TOKEN_DAYS = 30;
 const MAX_API_TOKEN_DAYS = 365;
+const PASSWORD_RESET_WINDOW_MS = 15 * 60 * 1000;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+const passwordResetAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function sanitizeUser(user: any) {
   const { passwordHash, ...safeUser } = user;
@@ -31,6 +34,33 @@ function normalizeApiTokenDays(value: unknown): number {
 
 function buildApiTokenExpiry(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+function consumePasswordResetAttempt(key: string) {
+  const now = Date.now();
+  const entry = passwordResetAttempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    passwordResetAttempts.set(key, { count: 1, resetAt: now + PASSWORD_RESET_WINDOW_MS });
+    return;
+  }
+
+  passwordResetAttempts.set(key, { count: entry.count + 1, resetAt: entry.resetAt });
+}
+
+function clearPasswordResetAttempts(key: string) {
+  passwordResetAttempts.delete(key);
+}
+
+function getPasswordResetRetryAfter(key: string): number | null {
+  const now = Date.now();
+  const entry = passwordResetAttempts.get(key);
+  if (!entry) return null;
+  if (entry.resetAt <= now) {
+    passwordResetAttempts.delete(key);
+    return null;
+  }
+  if (entry.count < PASSWORD_RESET_MAX_ATTEMPTS) return null;
+  return Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
 }
 
 async function issueApiTokenForUser(userId: string, name: string, expiresInDays: number) {
@@ -540,6 +570,73 @@ router.post('/token/login', async (req, res, next) => {
       apiToken: issuedToken.metadata,
       ...(await buildAuthPayload(user.id, activeFamilyId)),
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/local/reset-password', async (req, res, next) => {
+  try {
+    const { email, authCode, newPassword } = req.body ?? {};
+    if (!email || !authCode || !newPassword) {
+      return res.status(400).json({ error: 'Missing email, auth code, or new password' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedAuthCode = String(authCode).trim().toUpperCase();
+    const resetKey = `${req.ip}:${normalizedEmail}`;
+    const retryAfter = getPasswordResetRetryAfter(resetKey);
+    if (retryAfter) {
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Troppi tentativi di recupero. Riprova tra qualche minuto.' });
+    }
+
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'La nuova password deve contenere almeno 8 caratteri' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (!user || !user.passwordHash) {
+      consumePasswordResetAttempt(resetKey);
+      return res.status(401).json({ error: 'Dati di recupero non validi' });
+    }
+
+    const ensuredAuthCode = await ensureUserAuthCode(user.id);
+    if (ensuredAuthCode !== normalizedAuthCode) {
+      consumePasswordResetAttempt(resetKey);
+      return res.status(401).json({ error: 'Dati di recupero non validi' });
+    }
+
+    const nextPasswordHash = await bcrypt.hash(String(newPassword), 10);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash: nextPasswordHash },
+      });
+      await tx.apiAccessToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+
+    clearPasswordResetAttempts(resetKey);
+
+    const auditFamilyId = await resolveAuditFamilyIdForUser(user.id);
+    if (auditFamilyId) {
+      await logAudit({
+        familyId: auditFamilyId,
+        userId: user.id,
+        action: 'PASSWORD_RESET_SELF_SERVICE',
+        entityType: 'user',
+        entityId: user.id,
+        details: {
+          authMethod: 'email_auth_code',
+          revokedApiTokens: true,
+        },
+      });
+    }
+
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

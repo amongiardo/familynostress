@@ -15,15 +15,17 @@ function LoginPageContent() {
   const { user, loading, refresh } = useAuth();
   const error = searchParams.get('error');
   const inviteToken = searchParams.get('invite') || undefined;
-  const [mode, setMode] = useState<'login' | 'register'>(inviteToken ? 'register' : 'login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(inviteToken ? 'register' : 'login');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [localSuccess, setLocalSuccess] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: '',
     name: '',
     familyName: '',
     password: '',
     passwordConfirm: '',
+    authCode: '',
   });
 
   useEffect(() => {
@@ -45,6 +47,7 @@ function LoginPageContent() {
     e.preventDefault();
     setSubmitting(true);
     setLocalError(null);
+    setLocalSuccess(null);
     try {
       let resultUserActiveFamilyId: string | undefined;
       if (mode === 'login') {
@@ -54,7 +57,7 @@ function LoginPageContent() {
           await familyApi.acceptInvite(inviteToken);
           resultUserActiveFamilyId = undefined;
         }
-      } else {
+      } else if (mode === 'register') {
         if (form.password !== form.passwordConfirm) {
           setLocalError('Le password non coincidono');
           return;
@@ -67,6 +70,25 @@ function LoginPageContent() {
           inviteToken,
         });
         resultUserActiveFamilyId = payload.user?.activeFamilyId;
+      } else {
+        if (form.password !== form.passwordConfirm) {
+          setLocalError('Le password non coincidono');
+          return;
+        }
+        await authApi.resetLocalPassword({
+          email: form.email,
+          authCode: form.authCode.trim().toUpperCase(),
+          newPassword: form.password,
+        });
+        setLocalSuccess('Password aggiornata. Ora puoi accedere con la nuova password.');
+        setMode('login');
+        setForm((current) => ({
+          ...current,
+          password: '',
+          passwordConfirm: '',
+          authCode: '',
+        }));
+        return;
       }
       await refresh();
       if (inviteToken) {
@@ -107,6 +129,13 @@ function LoginPageContent() {
             }
             setLocalError(null);
           }}
+        />
+
+        <StatusModal
+          show={Boolean(localSuccess)}
+          variant="success"
+          message={localSuccess || ''}
+          onClose={() => setLocalSuccess(null)}
         />
 
         <div className="my-4 text-muted" />
@@ -151,7 +180,7 @@ function LoginPageContent() {
           )}
 
           <Form.Group className="mb-3" controlId="password">
-            <Form.Label>Password</Form.Label>
+            <Form.Label>{mode === 'forgot' ? 'Nuova Password' : 'Password'}</Form.Label>
             <Form.Control
               type="password"
               value={form.password}
@@ -160,7 +189,26 @@ function LoginPageContent() {
             />
           </Form.Group>
 
-          {mode === 'register' && (
+          {mode === 'forgot' && (
+            <Form.Group className="mb-3" controlId="authCode">
+              <Form.Label>Codice di Recupero</Form.Label>
+              <Form.Control
+                type="text"
+                value={form.authCode}
+                onChange={(e) =>
+                  setForm({ ...form, authCode: e.target.value.toUpperCase().slice(0, 5) })
+                }
+                placeholder="Codice personale a 5 caratteri"
+                autoCapitalize="characters"
+                required
+              />
+              <Form.Text className="text-muted">
+                Usa il tuo codice personale visibile in Impostazioni &gt; Profilo Utente.
+              </Form.Text>
+            </Form.Group>
+          )}
+
+          {(mode === 'register' || mode === 'forgot') && (
             <Form.Group className="mb-3" controlId="passwordConfirm">
               <Form.Label>Conferma Password</Form.Label>
               <Form.Control
@@ -174,26 +222,41 @@ function LoginPageContent() {
 
           <div className="d-grid">
             <Button variant="primary" type="submit" disabled={submitting}>
-              {mode === 'login' ? 'Accedi con Email' : 'Crea Account'}
+              {mode === 'login'
+                ? 'Accedi con Email'
+                : mode === 'register'
+                  ? 'Crea Account'
+                  : 'Aggiorna Password'}
             </Button>
           </div>
 
           <div className="mt-3 text-center small">
             {mode === 'login' ? (
-              <button
-                type="button"
-                className="btn btn-link p-0"
-                onClick={() => setMode('register')}
-              >
-                Non hai un account? Registrati
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn-link p-0"
+                  onClick={() => setMode('register')}
+                >
+                  Non hai un account? Registrati
+                </button>
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    className="btn btn-link p-0"
+                    onClick={() => setMode('forgot')}
+                  >
+                    Password dimenticata?
+                  </button>
+                </div>
+              </>
             ) : (
               <button
                 type="button"
                 className="btn btn-link p-0"
                 onClick={() => setMode('login')}
               >
-                Hai già un account? Accedi
+                {mode === 'register' ? 'Hai già un account? Accedi' : 'Torna al login'}
               </button>
             )}
           </div>

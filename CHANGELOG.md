@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2 - 2026-03-26
+### Recupero password self-service
+- Aggiunto flusso `Password dimenticata?` nella pagina `/login`.
+- Introdotto `POST /auth/local/reset-password` con verifica `email + authCode personale + nuova password`.
+- Reso il codice di autenticazione utente visibile nel profilo per tutti gli account, non solo per gli admin.
+- Revoca automatica dei bearer token API quando la password viene reimpostata.
+- Aggiunto rate limit locale sui tentativi di reset per ridurre il rischio di brute force.
+
 ## 0.8.1 - 2026-03-26
 ### Swagger docs locale e stabilità avvio
 - Corretto il routing docs per forzare il path canonico `/docs/`, evitando asset Swagger risolti su root (`/swagger-ui-*.js|css`) e pagina bianca.

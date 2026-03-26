@@ -702,46 +702,42 @@ export default function ImpostazioniPage() {
                   <div className="text-muted">{user?.email || '—'}</div>
                 </Col>
               </Row>
-              {isAdmin ? (
-                <>
-                  <Form.Label className="fw-bold">Codice di autenticazione utente</Form.Label>
-                  <InputGroup>
-                    <Form.Control
-                      type="text"
-                      value={user?.authCode || ''}
-                      disabled
-                      placeholder="—"
-                      className="auth-code-display-soft"
-                    />
-                    <Button
-                      variant="outline-primary"
-                      className="btn-primary-soft"
-                      onClick={handleCopyAuthCode}
-                      disabled={!user?.authCode}
-                      title="Copia codice"
-                    >
-                      {copiedAuthCode ? <FaCheck /> : <FaCopy />}
-                    </Button>
-                    <Button
-                      variant="outline-primary"
-                      className="btn-primary-soft"
-                      onClick={() => regenerateAuthCodeMutation.mutate()}
-                      disabled={regenerateAuthCodeMutation.isPending}
-                    >
-                      {regenerateAuthCodeMutation.isPending ? (
-                        <Spinner size="sm" animation="border" />
-                      ) : (
-                        'Rigenera'
-                      )}
-                    </Button>
-                  </InputGroup>
-                  <Form.Text className="text-muted">
-                    È personale per account (stessa email), uguale su tutte le famiglie.
-                  </Form.Text>
-                </>
-              ) : (
-                <div className="text-muted">Codice di autenticazione visibile solo agli admin.</div>
-              )}
+              <>
+                <Form.Label className="fw-bold">Codice di autenticazione utente</Form.Label>
+                <InputGroup>
+                  <Form.Control
+                    type="text"
+                    value={user?.authCode || ''}
+                    disabled
+                    placeholder="—"
+                    className="auth-code-display-soft"
+                  />
+                  <Button
+                    variant="outline-primary"
+                    className="btn-primary-soft"
+                    onClick={handleCopyAuthCode}
+                    disabled={!user?.authCode}
+                    title="Copia codice"
+                  >
+                    {copiedAuthCode ? <FaCheck /> : <FaCopy />}
+                  </Button>
+                  <Button
+                    variant="outline-primary"
+                    className="btn-primary-soft"
+                    onClick={() => regenerateAuthCodeMutation.mutate()}
+                    disabled={regenerateAuthCodeMutation.isPending}
+                  >
+                    {regenerateAuthCodeMutation.isPending ? (
+                      <Spinner size="sm" animation="border" />
+                    ) : (
+                      'Rigenera'
+                    )}
+                  </Button>
+                </InputGroup>
+                <Form.Text className="text-muted">
+                  È personale per account, uguale su tutte le famiglie e serve anche per il recupero password da login.
+                </Form.Text>
+              </>
 
               <hr className="my-4" />
 
