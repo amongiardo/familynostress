@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 - 2026-03-26
+### Swagger docs locale e stabilità avvio
+- Corretto il routing docs per forzare il path canonico `/docs/`, evitando asset Swagger risolti su root (`/swagger-ui-*.js|css`) e pagina bianca.
+- Aggiornato lockfile backend per allineare le dipendenze locali usate da Swagger UI.
+- Migliorata la robustezza dell'avvio locale con auto-check dipendenze e indicazioni operative nel flusso di sviluppo.
+
 ## 0.8.0 - 2026-03-25
 ### Mobile auth, token API e release notes
 - Aggiunto il flusso mobile `register + token` tramite `POST /auth/local/register-token`.

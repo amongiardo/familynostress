@@ -498,6 +498,13 @@ function docsUnlockedGuard(req: Request, res: Response, next: NextFunction) {
 }
 
 router.get('/', (req, res, next) => {
+  const hasTrailingSlash = req.originalUrl.split('?')[0].endsWith('/');
+  if (!hasTrailingSlash) {
+    const queryIndex = req.originalUrl.indexOf('?');
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+    return res.redirect(301, `${req.baseUrl}/${query}`);
+  }
+
   if ((req.session as any)?.swaggerDocsAuthorized === true) {
     return next();
   }
